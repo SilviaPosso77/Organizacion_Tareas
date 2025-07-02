@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'organizacion_tareas',  # Your app name
 ]
 
 MIDDLEWARE = [
@@ -71,7 +72,7 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
+#conectar base de datos PostgreSQL 16
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
