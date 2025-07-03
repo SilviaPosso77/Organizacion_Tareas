@@ -1,5 +1,6 @@
-from rest_framework import serializers
+from rest_framework import serializers#TENGO UN ERROR ME FALTA EL RES_FRA.. #NO OLVIDAR INSTALARLO CREO QUE EN SETTINGS pip install djangorestframework
 from .models import Login, taks,  User, task_details, Collaborator,Notification,Report
+
 
 class LoginSerializer(serializers.ModelSerializer):
     class Meta:
