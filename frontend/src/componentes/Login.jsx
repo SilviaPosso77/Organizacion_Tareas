@@ -2,17 +2,19 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import './login.css'
 
-const Login = () => {
-  const [documento, setDocumento] = useState('');
-  const [fechaNacimiento, setFechaNacimiento] = useState('');
+
+
+const Login = ({ onClose }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [mensaje, setMensaje] = useState('');
 
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
       const response = await axios.post('http://127.0.0.1:8000/api/login/', {
-        documento_identidad: documento,
-        fecha_nacimiento: fechaNacimiento
+        email: email,
+        password: password
       });
       setMensaje('Inicio de sesión exitoso');
       console.log(response.data);
@@ -22,50 +24,45 @@ const Login = () => {
   };
 
   return (
-    <div className="login-container">
-      <div className="login-box">
-        <div className="logo-container">
-          
-          <div className="login-icon">
-            <img src="/image.png" alt="Logo de la aplicación" className="login-logo" /> 
-            <svg width="0" height="100" viewBox="5 0 50 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#1aa310" strokeWidth="2" fill="none"/>
-            </svg>
-          </div>
-        </div>
+    <div className="modal-background">
+      <div className="login-modal">
+        <button className="close-button" onClick={onClose}>×</button>
+        
+        <div className="logo">
+          <img src="/logo censa.png" alt="" />
 
-        <h2 className="login-title">Iniciar Sesión</h2>
-        <form onSubmit={handleLogin} className="login-form">
-          <div className="input-group">
-            <label htmlFor="documento" className="input-label">Documento de Identidad</label>
-            <input
-              id="documento"
-              type="text"
-              className="input-field"
-              placeholder="Ingrese su documento"
-              value={documento}
-              onChange={(e) => setDocumento(e.target.value)}
-              required
-            />
-          </div>
+          {/*<div className="logo-text">CENSA</div>*/}
+        </div>
+        
+        <h2>Iniciar sesión</h2>
+        
+        <form onSubmit={handleLogin}>
+          <input
+            type="text"
+            placeholder="Documento de identidad"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
           
-          <div className="input-group">
-            <label htmlFor="fecha" className="input-label">Fecha de Nacimiento</label>
-            <input
-              id="fecha"
-              type="date"
-              className="input-field"
-              value={fechaNacimiento}
-              onChange={(e) => setFechaNacimiento(e.target.value)}
-              required
-            />
-          </div>
+          <input
+            type="date"
+            placeholder="Fecha de nacimiento"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
           
-          <button type="submit" className="login-button">
-            Ingresar
-          </button>
+          <a href="#" className="forgot-password">¿Olvidaste tu contraseña?</a>
+          
+          <button type="submit" className="login-button">Ingresar</button>
         </form>
-        {mensaje && <p className={`mensaje ${mensaje.includes('exitoso') ? 'success' : 'error'}`}>{mensaje}</p>}
+        
+        <div className="register-text">
+          ¿AÚN NO HACES PARTE? <a href="#">REGÍSTRATE</a>
+        </div>
+        
+        {mensaje && <p style={{color: mensaje.includes('exitoso') ? '#4CAF50' : '#f44336', marginTop: '1rem'}}>{mensaje}</p>}
       </div>
     </div>
   );
