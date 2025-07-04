@@ -37,8 +37,8 @@ class ReportViewSet(viewsets.ModelViewSet):
     
 class LoginAPIView(APIView):
     def post(self, request):
-        documento = request.data.get('documento_identidad')
-        fecha = request.data.get('fecha_nacimiento')
+        documento = request.data.get('email') #envia email como documento de identidad
+        fecha = request.data.get('password')#envia fecha de nacimiento como password
 
         try:
             usuario = Login.objects.get(documento_identidad=documento, fecha_nacimiento=fecha)

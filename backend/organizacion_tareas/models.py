@@ -3,11 +3,11 @@ from django.db import models
 
 class Login(models.Model):
   id = models.SmallAutoField(primary_key=True)
-  doc_identidad = models.CharField(max_length=20)
+  documento_identidad = models.CharField(max_length=20, default='000000')
   fecha_nacimiento = models.DateField()
 
 def __str__(self):
-        return self.doc_identidad
+        return self.documento_identidad
 
 
    #Task- tareas  
