@@ -1,7 +1,10 @@
 from django.shortcuts import render
 from rest_framework import viewsets
-from .models import Login, taks, User, task_details, Collaborator, Notification, Report
-from .serializers import LoginSerializer, TaksSerializer, UserSerializer, taskDetailsSerializer, CollaboratorSerializer, NotificationSerializer, ReportSerializer
+from .models import Login, task, User, task_details, Collaborator, Notification, Report
+from .serializers import (LoginSerializer, TaskSerializer, UserSerializer, TaskDetailsSerializer, CollaboratorSerializer, NotificationSerializer, ReportSerializer
+      )   
+
+#from .serializers import LoginSerializer, TaskSerializer, UserSerializer, taskDetailsSerializer, CollaboratorSerializer, NotificationSerializer, ReportSerializer
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
@@ -15,12 +18,12 @@ class LoginViewSet(viewsets.ModelViewSet):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-class TaksViewSet(viewsets.ModelViewSet):
-    queryset = taks.objects.all()
-    serializer_class = TaksSerializer
+class TaskViewSet(viewsets.ModelViewSet):
+    queryset = task.objects.all()
+    serializer_class = TaskSerializer
 class TaskDetailsViewSet(viewsets.ModelViewSet):
     queryset = task_details.objects.all()
-    serializer_class = taskDetailsSerializer    
+    serializer_class = TaskDetailsSerializer    
 class CollaboratorViewSet(viewsets.ModelViewSet):
     queryset = Collaborator.objects.all()
     serializer_class = CollaboratorSerializer   
