@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework import routers
 from django.contrib import admin#que hace esta cosa?
-from .views import LoginViewSet, TaskViewSet, UserViewSet, TaskDetailsViewSet, CollaboratorViewSet, NotificationViewSet, ReportViewSet
+from .views import LoginViewSet, TaskViewSet, UserViewSet, TaskDetailsViewSet, CollaboratorViewSet, NotificationViewSet, ReportViewSet, RegisterAPIView, LoginAPIView 
 
 router = routers.DefaultRouter()
 router.register(r'login', LoginViewSet)
@@ -14,6 +14,8 @@ router.register(r'report', ReportViewSet)
 
 urlpatterns = [#que hace esta cosa? VAMOS A ENLAZAR LAS URLS CON LAS VIEWS, Y VA BUSCAR LAS RUTAS EN EL ARCHIVO VIEWS.
     path('', include(router.urls)),
+    path('auth/login/', LoginAPIView.as_view(), name='login'),
+    path('auth/register/', RegisterAPIView.as_view(), name='register'),
 
     #path('admin/', admin.site.urls),
     #path('api/', include('organizacion_tareas.urls')),

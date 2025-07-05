@@ -1,26 +1,79 @@
 import React, { useState } from 'react';
+
 import axios from 'axios';
 import './login.css'
 
-
-
 const Login = ({ onClose }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [name, setName] = useState("");
+  const [documento, setDocumento] = useState('');
+  const [fecha, setFecha] = useState('');
   const [mensaje, setMensaje] = useState('');
+  const [isRegister, setIsRegister] = useState(false);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await axios.post('http://127.0.0.1:8000/api/Login/', {
-        email: email,
-        password: password
-      });
-      setMensaje('Inicio de sesión exitoso');
-      console.log(response.data);
-    } catch (error) {
-      setMensaje('Credenciales incorrectas');
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  console.log('=== DATOS DEL FORMULARIO ===');
+  console.log('Documento:', documento);
+  console.log('Fecha:', fecha);
+  console.log('Nombre:', name);
+  console.log('Es registro:', isRegister);
+  
+  const url = isRegister 
+    ? 'http://127.0.0.1:8000/api/auth/register/'
+    : 'http://127.0.0.1:8000/api/auth/login/';
+  
+  console.log('URL:', url);
+  
+  try {
+    // Preparar datos según el modo (login o registro)
+    const data = {
+      documento_identidad: documento,
+      fecha_nacimiento: fecha
+    };
+    
+    // Solo agregar el nombre si es registro
+    if (isRegister) {
+      data.nombre_completo = name;
     }
+    
+    console.log('Datos a enviar:', data);
+    
+    const response = await axios.post(url, data);
+    
+    console.log('Respuesta exitosa:', response.data);
+    
+    if (isRegister) {
+      setMensaje('¡Usuario registrado exitosamente!');
+      setTimeout(() => {
+        setIsRegister(false);
+        setMensaje('');
+      }, 2000);
+    } else {
+      setMensaje('¡Inicio de sesión exitoso!');
+      setTimeout(() => {
+        onClose && onClose();
+      }, 1500);
+    }
+    
+  } catch (error) {
+    console.error('Error completo:', error);
+    console.error('Error response:', error.response);
+    console.error('Error response data:', error.response?.data);
+    
+    const errorMessage = error.response?.data?.error || 
+                        error.response?.data?.message || 
+                        'Error en la operación';
+    setMensaje(errorMessage);
+  }
+};
+    
+  const toggleMode = () => {
+    setIsRegister(!isRegister);
+    setMensaje('');
+    setDocumento('');
+    setFecha('');
+    setName('');
   };
 
   return (
@@ -28,44 +81,77 @@ const Login = ({ onClose }) => {
       <div className="login-modal">
         <button className="close-button" onClick={onClose}>×</button>
         
-        <div className="logo">
-          <img src="/logo censa.png" alt="" />
-
-          {/*<div className="logo-text">CENSA</div>*/}
+        <div className="logo"><br/>
+        
+          <div className="logo-text">CENSA SAS</div>
+        
         </div>
-        
-        <h2>Iniciar sesión</h2>
-        
-        <form onSubmit={handleLogin}>
+
+
+         {/* formulario de resgistrarse*/}
+        <h2>{isRegister ? 'Registrarse' : 'Ingresar'}</h2>
+        <form onSubmit={handleSubmit}>
           <input
             type="text"
             placeholder="Documento de identidad"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={documento}
+            onChange={(e) => setDocumento(e.target.value)}
             required
           />
-          
+          {/* Campo para nombres y apellidos - solo en registro */}
+          {isRegister && (
+            <input
+              type="text"
+              placeholder="Nombres y apellidos"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          )}
+           {/* Campo para fecha de nacimiento */}
+
           <input
             type="date"
             placeholder="Fecha de nacimiento"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
             required
           />
+
+
+          {/* Campo para contraseña */}
+
           
-          <a href="#" className="forgot-password">¿Olvidaste tu contraseña?</a>
           
-          <button type="submit" className="login-button">Ingresar</button>
+          {!isRegister && (
+            <a href="#" className="forgot-password">¿Olvidaste tu documento?</a>
+          )}
+          
+          <button type="submit" className="login-button">
+            {isRegister ? 'REGISTRARSE' : 'INGRESAR'}
+          </button>
         </form>
         
         <div className="register-text">
-          ¿AÚN NO HACES PARTE? <a href="#">REGÍSTRATE</a>
+          {isRegister ? '¿Ya tienes cuenta?' : '¿AÚN NO HACES PARTE?'}{' '}
+          <a href="#" onClick={toggleMode}>
+            {isRegister ? 'INICIAR SESIÓN' : 'REGÍSTRATE'}
+          </a>
         </div>
         
-        {mensaje && <p style={{color: mensaje.includes('exitoso') ? '#4CAF50' : '#f44336', marginTop: '1rem'}}>{mensaje}</p>}
+        {mensaje && (
+          <p style={{
+            color: mensaje.includes('exitoso') ? '#4CAF50' : '#f44336', 
+            marginTop: '1rem'
+          }}>
+            {mensaje}
+          </p>
+        )}
       </div>
     </div>
   );
 };
+
+
 
 export default Login;

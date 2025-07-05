@@ -25,7 +25,7 @@ from rest_framework_simplejwt.views import (
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('organizacion_tareas.urls')),
+    path('api/', include('organizacion_tareas.urls')),##aqui tengo un error
     path('', lambda request: HttpResponse("Bienvenida a la API de Organización de Tareas 😊")),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Login, task,  User, task_details, Collaborator, Notification, Report
+from .models import Login, Task,  User, TaskDetails, Collaborator, Notification, Report
 
 class LoginSerializer(serializers.ModelSerializer):
     class Meta:
@@ -13,7 +13,12 @@ class UserSerializer(serializers.ModelSerializer):
 
 class TaskSerializer(serializers.ModelSerializer):
     class Meta:
-        model = task
+        model = Task
+        fields = '__all__'
+        
+class TaskDetailsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaskDetails
         fields = '__all__'
 
 class CollaboratorSerializer(serializers.ModelSerializer):
@@ -28,8 +33,4 @@ class NotificationSerializer(serializers.ModelSerializer):
 class ReportSerializer(serializers.ModelSerializer):
     class Meta:
         model = Report
-        fields = '__all__'
-class TaskDetailsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = task_details
         fields = '__all__'

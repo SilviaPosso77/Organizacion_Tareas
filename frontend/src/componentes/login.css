@@ -31,11 +31,15 @@
   cursor: pointer;
 }
 
-.logo img {
-  width: 60px;
-  height: auto;
+.logo{
+  font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+  font-size: 30px;
+  width: 30px;
+  height: 90px;
   margin-bottom: 1rem;
-  width: 40%;
+  width: 100%;
+  font-weight: 100;
+  text-align: center;
 
 }
 /*logo borrar 

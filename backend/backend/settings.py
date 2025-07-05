@@ -31,16 +31,20 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'corsheaders',  # CORS headers for cross-origin requests
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',  # Django REST Framework
+    'rest_framework_simplejwt',  # JWT Authentication
     'organizacion_tareas',  # Your app name
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # CORS middleware
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -72,14 +76,14 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-#conectar base de datos PostgreSQL 16
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        'USER': 'PostgreSQL 16',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'organizacion_tareas',  
+        'USER': 'postgres',  # Corregido: debe ser 'postgres'
         'PASSWORD': '1037778057', 
         'HOST': 'localhost',
+        'PORT': '5432',  
     }
 }
 
@@ -131,3 +135,15 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
 }
+
+# CORS Configuration
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # React dev server
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",  # Vite dev server
+    "http://localhost:5174",  # Vite dev server (puerto alternativo)
+    "http://localhost:5175",  # Vite dev server (puerto alternativo)
+    "http://localhost:5176",  # Vite dev server (puerto alternativo)
+]
+
+CORS_ALLOW_CREDENTIALS = True
