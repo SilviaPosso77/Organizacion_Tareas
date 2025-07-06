@@ -9,6 +9,7 @@ const Login = ({ onClose }) => {
   const [fecha, setFecha] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [isRegister, setIsRegister] = useState(false);
+  const [rol, setRol] = useState('user');
 
   const handleSubmit = async (e) => {
   e.preventDefault();
@@ -35,6 +36,7 @@ const Login = ({ onClose }) => {
     // Solo agregar el nombre si es registro
     if (isRegister) {
       data.nombre_completo = name;
+      data.rol = rol;
     }
     
     console.log('Datos a enviar:', data);
@@ -56,7 +58,9 @@ const Login = ({ onClose }) => {
         const userData = {
           user_id: response.data.user_id,
           documento_identidad: documento,
-          nombre_completo: response.data.nombre_completo || 'Usuario'
+          nombre_completo: response.data.nombre_completo || 'Usuario',
+          rol: response.data.rol || 'user',
+          estado: response.data.estado || 'approved'
         };
         onClose && onClose(userData);
       }, 1500);
@@ -80,6 +84,7 @@ const Login = ({ onClose }) => {
     setDocumento('');
     setFecha('');
     setName('');
+    setRol('user'); // Resetear el rol al valor por defecto
   };
 
   return (
@@ -106,13 +111,27 @@ const Login = ({ onClose }) => {
           />
           {/* Campo para nombres y apellidos - solo en registro */}
           {isRegister && (
-            <input
-              type="text"
-              placeholder="Nombres y apellidos"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
+            <>
+              <input
+                type="text"
+                placeholder="Nombres y apellidos"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+              
+              {/* Campo para seleccionar el rol */}
+              <select
+                value={rol}
+                onChange={(e) => setRol(e.target.value)}
+                required
+                className="role-select"
+              >
+                <option value="user">Usuario Regular</option>
+                <option value="admin">Administrador</option>
+                <option value="manager">Gerente</option>
+              </select>
+            </>
           )}
            {/* Campo para fecha de nacimiento */}
 

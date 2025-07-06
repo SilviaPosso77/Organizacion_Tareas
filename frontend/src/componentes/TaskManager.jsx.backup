@@ -1,0 +1,1290 @@
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import './TaskManager.css';
+
+//tareas
+const TaskManager = ({ userId, userData, onLogout }) => {
+  const [tareas, setTareas] = useState([]);
+  const [nuevaTarea, setNuevaTarea] = useState({
+    task: '',
+    priority: 'medium',
+    status: 'pending',
+    category: 'principal',
+    due_date: '',
+    description: '',
+    start_date: '',
+    progress: 0,
+    estimated_hours: '',
+    actual_hours: '',
+    tags: '',
+    parent_task: null,
+    team: null,
+    assigned_to: null // Para asignar tareas a otros usuarios (admin)
+  });
+  const [editandoTarea, setEditandoTarea] = useState(null);
+  const [tareaEditada, setTareaEditada] = useState({});
+  const [filtros, setFiltros] = useState({
+    search: '',
+    priority: '',
+    status: '',
+    category: '',
+    due_date: '',
+    tags: '',
+    progress_min: '',
+    progress_max: '',
+    show_all: false // Para que admin vea todas las tareas
+  });
+  const [vistaDetalle, setVistaDetalle] = useState(null);
+  const [modoCreacion, setModoCreacion] = useState('simple'); // 'simple' o 'avanzado'
+  const [teams, setTeams] = useState([]);
+  const [colaboradores, setColaboradores] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [comentarios, setComentarios] = useState({});
+  const [nuevoComentario, setNuevoComentario] = useState('');
+  const [tareaSeleccionada, setTareaSeleccionada] = useState(null);
+  
+  // Estados específicos para admin
+  const [usuarios, setUsuarios] = useState([]);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [estadisticasGenerales, setEstadisticasGenerales] = useState({});
+  const [reportes, setReportes] = useState([]);
+
+  const API_URL = 'http://127.0.0.1:8000/api/task/';
+  const TEAM_API_URL = 'http://127.0.0.1:8000/api/team/';
+  const COLLABORATOR_API_URL = 'http://127.0.0.1:8000/api/collaborator/';
+  const NOTIFICATION_API_URL = 'http://127.0.0.1:8000/api/notification/';
+  const COMMENT_API_URL = 'http://127.0.0.1:8000/api/comment/';
+
+  // Opciones para los select
+  const prioridadOpciones = [
+    { value: 'low', label: 'Baja', color: '#28a745' },
+    { value: 'medium', label: 'Media', color: '#ffc107' },
+    { value: 'high', label: 'Alta', color: '#fd7e14' },
+    { value: 'urgent', label: 'Urgente', color: '#dc3545' }
+  ];
+
+  const estadoOpciones = [
+    { value: 'pending', label: 'Pendiente', color: '#6c757d' },
+    { value: 'in_progress', label: 'En Progreso', color: '#007bff' },
+    { value: 'completed', label: 'Completada', color: '#28a745' },
+    { value: 'cancelled', label: 'Cancelada', color: '#dc3545' },
+    { value: 'on_hold', label: 'En Espera', color: '#ffc107' }
+  ];
+
+  const categoriaOpciones = [
+    { value: 'principal', label: 'Principal' },
+    { value: 'subtarea', label: 'Subtarea' }
+  ];
+
+  // Obtener tareas al cargar y cuando cambien los filtros
+  useEffect(() => {
+    obtenerTareas();
+    obtenerTeams();
+    obtenerNotifications();
+    
+    // Si es admin, obtener datos adicionales
+    if (userData?.rol === 'admin') {
+      obtenerUsuarios();
+      obtenerEstadisticasGenerales();
+    }
+  }, [filtros, userData]);
+
+  // Función para obtener tareas
+  const obtenerTareas = async () => {
+    try {
+      const url = construirURLConFiltros();
+      const response = await axios.get(url);
+      setTareas(response.data);
+    } catch (error) {
+      console.error('Error al obtener tareas:', error);
+    }
+  };
+
+  // Función para obtener equipos
+  const obtenerTeams = async () => {
+    try {
+      const response = await axios.get(`${TEAM_API_URL}?user_id=${userId}`);
+      setTeams(response.data);
+    } catch (error) {
+      console.error('Error al obtener equipos:', error);
+    }
+  };
+
+  // Función para obtener notificaciones
+  const obtenerNotifications = async () => {
+    try {
+      const response = await axios.get(`${NOTIFICATION_API_URL}?user_id=${userId}`);
+      setNotifications(response.data);
+    } catch (error) {
+      console.error('Error al obtener notificaciones:', error);
+    }
+  };
+
+  // Función para obtener comentarios
+  const obtenerComentarios = async (taskId) => {
+    try {
+      const response = await axios.get(`${COMMENT_API_URL}?task_id=${taskId}`);
+      setComentarios(prev => ({
+        ...prev,
+        [taskId]: response.data
+      }));
+    } catch (error) {
+      console.error('Error al obtener comentarios:', error);
+    }
+  };
+
+  // Función para verificar si una tarea está vencida
+  const esTareaVencida = (dueDate, status) => {
+    if (!dueDate || status === 'completed') return false;
+    const hoy = new Date();
+    const fechaVencimiento = new Date(dueDate);
+    return fechaVencimiento < hoy;
+  };
+
+  // Función para crear tarea
+  const crearTarea = async (e) => {
+    e.preventDefault();
+    
+    if (!nuevaTarea.task.trim()) {
+      alert('El título de la tarea es requerido');
+      return;
+    }
+    
+    try {
+      const tareaData = {
+        ...nuevaTarea,
+        user_id: nuevaTarea.assigned_to || userId, // Si es admin y asigna a otro, usar assigned_to
+        tags: nuevaTarea.tags || '',
+        progress: parseInt(nuevaTarea.progress) || 0,
+        estimated_hours: parseFloat(nuevaTarea.estimated_hours) || null,
+        actual_hours: parseFloat(nuevaTarea.actual_hours) || null,
+        parent_task: nuevaTarea.parent_task || null,
+        team: nuevaTarea.team || null,
+        due_date: nuevaTarea.due_date || null,
+        start_date: nuevaTarea.start_date || null,
+        description: nuevaTarea.description || ''
+      };
+      
+      // Remover assigned_to del objeto final
+      delete tareaData.assigned_to;
+      
+      await axios.post(API_URL, tareaData);
+      
+      // Limpiar formulario
+      setNuevaTarea({
+        task: '',
+        priority: 'medium',
+        status: 'pending',
+        category: 'principal',
+        due_date: '',
+        description: '',
+        start_date: '',
+        progress: 0,
+        estimated_hours: '',
+        actual_hours: '',
+        tags: '',
+        parent_task: null,
+        team: null,
+        assigned_to: null
+      });
+      
+      obtenerTareas();
+      alert('Tarea creada exitosamente');
+    } catch (error) {
+      console.error('Error al crear tarea:', error);
+      alert('Error al crear la tarea');
+    }
+  };
+
+  // Función para iniciar edición
+  const iniciarEdicion = (tarea) => {
+    setEditandoTarea(tarea.id);
+    setTareaEditada({
+      task: tarea.task,
+      priority: tarea.priority,
+      status: tarea.status,
+      category: tarea.category,
+      due_date: tarea.due_date || '',
+      description: tarea.description || '',
+      start_date: tarea.start_date || '',
+      progress: tarea.progress || 0,
+      estimated_hours: tarea.estimated_hours || '',
+      actual_hours: tarea.actual_hours || '',
+      tags: tarea.tags || '',
+      parent_task: tarea.parent_task || null,
+      team: tarea.team || null
+    });
+  };
+
+  // Función para guardar edición
+  const guardarEdicion = async (id) => {
+    try {
+      const tareaData = {
+        ...tareaEditada,
+        user_id: userId,
+        tags: tareaEditada.tags || '',
+        progress: parseInt(tareaEditada.progress) || 0,
+        estimated_hours: parseFloat(tareaEditada.estimated_hours) || null,
+        actual_hours: parseFloat(tareaEditada.actual_hours) || null,
+        parent_task: tareaEditada.parent_task || null,
+        team: tareaEditada.team || null,
+        due_date: tareaEditada.due_date || null,
+        start_date: tareaEditada.start_date || null,
+        description: tareaEditada.description || ''
+      };
+      
+      await axios.put(`${API_URL}${id}/`, tareaData);
+      setEditandoTarea(null);
+      setTareaEditada({});
+      obtenerTareas();
+      alert('Tarea actualizada exitosamente');
+    } catch (error) {
+      console.error('Error al actualizar tarea:', error);
+      alert('Error al actualizar la tarea');
+    }
+  };
+
+  // Función para eliminar tarea (usuario regular)
+  const eliminarTarea = async (id) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar esta tarea?')) {
+      try {
+        await axios.delete(`${API_URL}${id}/`);
+        obtenerTareas();
+        alert('Tarea eliminada exitosamente');
+      } catch (error) {
+        console.error('Error al eliminar tarea:', error);
+        alert('Error al eliminar la tarea');
+      }
+    }
+  };
+
+  // Función para cambiar estado de tarea
+  const cambiarEstadoTarea = async (id, nuevoEstado) => {
+    try {
+      await axios.put(`${API_URL}${id}/`, {
+        status: nuevoEstado
+      });
+      obtenerTareas();
+    } catch (error) {
+      console.error('Error al cambiar estado:', error);
+    }
+  };
+
+  // Función para ver detalle de tarea
+  const verDetalleTarea = async (id) => {
+    try {
+      const response = await axios.get(`${API_URL}${id}/`);
+      setVistaDetalle(response.data);
+      setTareaSeleccionada(id);
+      obtenerComentarios(id);
+    } catch (error) {
+      console.error('Error al obtener detalle:', error);
+    }
+  };
+
+  // Función para cerrar vista detalle
+  const cerrarVistaDetalle = () => {
+    setVistaDetalle(null);
+    setTareaSeleccionada(null);
+  };
+
+  // Función para agregar comentario
+  const agregarComentario = async (taskId) => {
+    if (!nuevoComentario.trim()) return;
+    
+    try {
+      await axios.post(COMMENT_API_URL, {
+        task_id: taskId,
+        user_id: userId,
+        comment: nuevoComentario,
+        created_at: new Date().toISOString()
+      });
+      
+      setNuevoComentario('');
+      obtenerComentarios(taskId);
+    } catch (error) {
+      console.error('Error al agregar comentario:', error);
+    }
+  };
+
+  // Función para agregar colaborador
+  const agregarColaborador = async (taskId, collaboratorId) => {
+    try {
+      await axios.post(COLLABORATOR_API_URL, {
+        task_id: taskId,
+        user_id: collaboratorId,
+        role: 'collaborator'
+      });
+      
+      alert('Colaborador agregado exitosamente');
+      obtenerTareas();
+    } catch (error) {
+      console.error('Error al agregar colaborador:', error);
+    }
+  };
+
+  // Función para marcar notificación como leída
+  const marcarNotificacionComoLeida = async (notificationId) => {
+    try {
+      await axios.put(`${NOTIFICATION_API_URL}${notificationId}/`, {
+        read: true
+      });
+      obtenerNotifications();
+    } catch (error) {
+      console.error('Error al marcar notificación:', error);
+    }
+  };
+
+  // Función para cancelar edición
+  const cancelarEdicion = () => {
+    setEditandoTarea(null);
+    setTareaEditada({});
+  };
+
+  // Función para obtener subtareas
+  const obtenerSubtareas = (parentId) => {
+    return tareas.filter(tarea => tarea.parent_task === parentId);
+  };
+
+  // Función para obtener tareas padre
+  const obtenerTareasPadre = () => {
+    return tareas.filter(tarea => tarea.parent_task === null);
+  };
+
+  // Función para calcular progreso de tarea padre
+  const calcularProgresoTareaPadre = (parentId) => {
+    const subtareas = obtenerSubtareas(parentId);
+    if (subtareas.length === 0) return 0;
+    
+    const progresoTotal = subtareas.reduce((sum, subtarea) => sum + (subtarea.progress || 0), 0);
+    return Math.round(progresoTotal / subtareas.length);
+  };
+
+  // Función para obtener color de prioridad
+  const obtenerColorPrioridad = (priority) => {
+    switch (priority) {
+      case 'high': return '#dc3545';
+      case 'medium': return '#ffc107';
+      case 'low': return '#28a745';
+      default: return '#6c757d';
+    }
+  };
+
+  // Función para obtener color de estado
+  const obtenerColorEstado = (status) => {
+    switch (status) {
+      case 'completed': return '#28a745';
+      case 'in_progress': return '#fd7e14';
+      case 'pending': return '#6c757d';
+      case 'cancelled': return '#dc3545';
+      default: return '#6c757d';
+    }
+  };
+
+  // Función para formatear fecha
+  const formatearFecha = (fecha) => {
+    if (!fecha) return '';
+    return new Date(fecha).toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  // Función para formatear horas
+  const formatearHoras = (horas) => {
+    if (!horas) return '0h';
+    return `${horas}h`;
+  };
+
+  // Función para obtener progreso general
+  const obtenerProgresoGeneral = () => {
+    if (tareas.length === 0) return 0;
+    const progresoTotal = tareas.reduce((sum, tarea) => sum + (tarea.progress || 0), 0);
+    return Math.round(progresoTotal / tareas.length);
+  };
+
+  // Función para obtener tareas próximas a vencer
+  const obtenerTareasProximasVencer = () => {
+    const hoy = new Date();
+    const proximosDias = new Date(hoy.getTime() + (3 * 24 * 60 * 60 * 1000)); // 3 días
+    
+    return tareas.filter(tarea => {
+      if (!tarea.due_date || tarea.status === 'completed') return false;
+      const fechaVencimiento = new Date(tarea.due_date);
+      return fechaVencimiento >= hoy && fechaVencimiento <= proximosDias;
+    });
+  };
+
+  // Función para obtener eficiencia (horas reales vs estimadas)
+  const obtenerEficiencia = () => {
+    const tareasConHoras = tareas.filter(t => t.estimated_hours && t.actual_hours);
+    if (tareasConHoras.length === 0) return 100;
+    
+    const totalEstimado = tareasConHoras.reduce((sum, t) => sum + parseFloat(t.estimated_hours), 0);
+    const totalReal = tareasConHoras.reduce((sum, t) => sum + parseFloat(t.actual_hours), 0);
+    
+    return Math.round((totalEstimado / totalReal) * 100);
+  };
+
+  // Función para exportar tareas (solo admin)
+  const exportarTareas = () => {
+    if (userData?.rol !== 'admin') {
+      alert('No tienes permisos para exportar tareas');
+      return;
+    }
+    
+    const csv = [
+      ['ID', 'Título', 'Prioridad', 'Estado', 'Categoría', 'Progreso', 'Fecha Vencimiento', 'Asignado a'].join(','),
+      ...tareas.map(tarea => [
+        tarea.id,
+        `"${tarea.task}"`,
+        tarea.priority,
+        tarea.status,
+        tarea.category,
+        tarea.progress,
+        tarea.due_date || '',
+        obtenerNombreUsuario(tarea.user_id)
+      ].join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tareas_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Función para obtener todos los usuarios (solo admin)
+  const obtenerUsuarios = async () => {
+    if (userData?.rol !== 'admin') return;
+    
+    try {
+      const response = await axios.get('http://127.0.0.1:8000/api/login/');
+      setUsuarios(response.data);
+    } catch (error) {
+      console.error('Error al obtener usuarios:', error);
+    }
+  };
+
+  // Función para obtener todas las tareas (admin) o solo las del usuario
+  const construirURLConFiltros = () => {
+    let url = `${API_URL}`;
+    
+    // Si es admin y tiene activado "ver todas", no filtrar por usuario
+    if (userData?.rol === 'admin' && filtros.show_all) {
+      url += '?show_all=true';
+    } else {
+      url += `?user_id=${userId}`;
+    }
+    
+    if (filtros.search && filtros.search.length >= 3) {
+      url += `&search=${encodeURIComponent(filtros.search)}`;
+    }
+    if (filtros.priority) {
+      url += `&priority=${filtros.priority}`;
+    }
+    if (filtros.status) {
+      url += `&status=${filtros.status}`;
+    }
+    if (filtros.category) {
+      url += `&category=${filtros.category}`;
+    }
+    if (filtros.due_date) {
+      url += `&due_date=${filtros.due_date}`;
+    }
+    if (filtros.tags) {
+      url += `&tags=${encodeURIComponent(filtros.tags)}`;
+    }
+    if (filtros.progress_min) {
+      url += `&progress_min=${filtros.progress_min}`;
+    }
+    if (filtros.progress_max) {
+      url += `&progress_max=${filtros.progress_max}`;
+    }
+    
+    return url;
+  };
+
+  // Función para obtener estadísticas generales (admin)
+  const obtenerEstadisticasGenerales = async () => {
+    if (userData?.rol !== 'admin') return;
+    
+    try {
+      const response = await axios.get(`${API_URL}?show_all=true`);
+      const todasLasTareas = response.data;
+      
+      setEstadisticasGenerales({
+        totalTareas: todasLasTareas.length,
+        totalUsuarios: usuarios.length,
+        tareasPendientes: todasLasTareas.filter(t => t.status === 'pending').length,
+        tareasCompletadas: todasLasTareas.filter(t => t.status === 'completed').length,
+        tareasVencidas: todasLasTareas.filter(t => esTareaVencida(t.due_date, t.status)).length,
+        promedioProgreso: todasLasTareas.length > 0 ? 
+          Math.round(todasLasTareas.reduce((sum, t) => sum + (t.progress || 0), 0) / todasLasTareas.length) : 0
+      });
+    } catch (error) {
+      console.error('Error al obtener estadísticas generales:', error);
+    }
+  };
+
+  const formatearFecha = (fecha) => {
+    if (!fecha) return '';
+    return new Date(fecha).toLocaleDateString('es-ES');
+  };
+
+  const obtenerColorPrioridad = (priority) => {
+    const opcion = prioridadOpciones.find(p => p.value === priority);
+    return opcion ? opcion.color : '#6c757d';
+  };
+
+  const obtenerColorEstado = (status) => {
+    const opcion = estadoOpciones.find(s => s.value === status);
+    return opcion ? opcion.color : '#6c757d';
+  };
+
+  const esTareaVencida = (due_date, status) => {
+    if (!due_date || status === 'completed') return false;
+    return new Date(due_date) < new Date();
+  };
+
+  const handleKeyPress = (e, action, id = null) => {
+    if (e.key === 'Enter') {
+      if (action === 'crear') {
+        crearTarea();
+      } else if (action === 'actualizar') {
+        actualizarTarea(id);
+      }
+    }
+  };
+
+  const limpiarFiltros = () => {
+    setFiltros({
+      search: '',
+      priority: '',
+      status: '',
+      category: '',
+      due_date: '',
+      tags: '',
+      progress_min: '',
+      progress_max: ''
+    });
+  };
+
+  // Función para asignar colaborador
+  const asignarColaborador = async (taskId, collaboratorId, role = 'viewer') => {
+    try {
+      await axios.post(COLLABORATOR_API_URL, {
+        task: taskId,
+        user: collaboratorId,
+        assigned_by: userId,
+        role: role
+      });
+      
+      alert('Colaborador asignado exitosamente');
+      obtenerTareas();
+    } catch (error) {
+      console.error('Error al asignar colaborador:', error);
+      alert('Error al asignar el colaborador');
+    }
+  };
+
+  // Función para marcar notificación como leída
+  const marcarNotificacionLeida = async (notificationId) => {
+    try {
+      await axios.put(`${NOTIFICATION_API_URL}${notificationId}/`, {
+        is_read: true
+      });
+      
+      obtenerNotifications();
+    } catch (error) {
+      console.error('Error al marcar notificación como leída:', error);
+    }
+  };
+
+  // Función para obtener subtareas
+  const obtenerSubtareas = (taskId) => {
+    return tareas.filter(t => t.parent_task === taskId);
+  };
+
+  // Función para calcular progreso de tarea principal basado en subtareas
+  const calcularProgresoSubtareas = (taskId) => {
+    const subtareas = obtenerSubtareas(taskId);
+    if (subtareas.length === 0) return 0;
+    
+    const subtareasCompletadas = subtareas.filter(s => s.status === 'completed').length;
+    return Math.round((subtareasCompletadas / subtareas.length) * 100);
+  };
+
+  // Función para aprobar/rechazar usuarios (admin)
+  const cambiarEstadoUsuario = async (usuarioId, nuevoEstado) => {
+    if (userData?.rol !== 'admin') {
+      alert('No tienes permisos para cambiar el estado de usuarios');
+      return;
+    }
+
+    try {
+      await axios.put(`http://127.0.0.1:8000/api/login/${usuarioId}/`, {
+        estado: nuevoEstado
+      });
+      
+      alert(`Usuario ${nuevoEstado === 'approved' ? 'aprobado' : 'rechazado'} exitosamente`);
+      obtenerUsuarios();
+    } catch (error) {
+      console.error('Error al cambiar estado del usuario:', error);
+      alert('Error al cambiar el estado del usuario');
+    }
+  };
+
+  // Reasignar tarea (admin)
+  const reasignarTarea = async (tareaId, nuevoUsuarioId) => {
+    if (userData?.rol !== 'admin') {
+      alert('No tienes permisos para reasignar tareas');
+      return;
+    }
+
+    try {
+      await axios.put(`${API_URL}${tareaId}/`, {
+        user_id: nuevoUsuarioId
+      });
+      
+      alert('Tarea reasignada exitosamente');
+      obtenerTareas();
+    } catch (error) {
+      console.error('Error al reasignar tarea:', error);
+      alert('Error al reasignar la tarea');
+    }
+  };
+
+  // Función para filtrar tareas basado en los filtros establecidos
+  const tareasFiltradas = tareas.filter(tarea => {
+    const matchesSearch = !filtros.search || 
+                         tarea.task.toLowerCase().includes(filtros.search.toLowerCase()) ||
+                         tarea.description.toLowerCase().includes(filtros.search.toLowerCase());
+    const matchesPriority = !filtros.priority || tarea.priority === filtros.priority;
+    const matchesStatus = !filtros.status || tarea.status === filtros.status;
+    const matchesCategory = !filtros.category || tarea.category === filtros.category;
+    const matchesDueDate = !filtros.due_date || tarea.due_date === filtros.due_date;
+    const matchesTags = !filtros.tags || (tarea.tags && tarea.tags.toLowerCase().includes(filtros.tags.toLowerCase()));
+    const matchesProgressMin = !filtros.progress_min || tarea.progress >= parseInt(filtros.progress_min);
+    const matchesProgressMax = !filtros.progress_max || tarea.progress <= parseInt(filtros.progress_max);
+    
+    return matchesSearch && matchesPriority && matchesStatus && matchesCategory && 
+           matchesDueDate && matchesTags && matchesProgressMin && matchesProgressMax;
+  });
+
+  // Función para obtener nombre del usuario por ID
+  const obtenerNombreUsuario = (userId) => {
+    const usuario = usuarios.find(u => u.id === userId);
+    return usuario ? usuario.nombre_completo : 'Usuario desconocido';
+  };
+
+  // Función para obtener color de la tarea según su estado
+  const obtenerColorTarea = (tarea) => {
+    if (tarea.status === 'completed') return 'green';
+    if (tarea.status === 'in_progress') return 'orange';
+    if (esTareaVencida(tarea.due_date, tarea.status)) return 'red';
+    return 'blue';
+  };
+
+  return (
+    <div className="task-manager">
+      <div className="header">
+        <div className="user-info">
+          <h2>Bienvenido, {userData.nombre_completo}</h2>
+          <p>Rol: <span className={`role-badge ${userData.rol}`}>{userData.rol}</span></p>
+          {userData.rol === 'admin' && (
+            <button 
+              className="admin-panel-btn"
+              onClick={() => setShowAdminPanel(!showAdminPanel)}
+            >
+              {showAdminPanel ? 'Ocultar' : 'Mostrar'} Panel de Admin
+            </button>
+          )}
+        </div>
+        <div className="header-actions">
+          <button className="notifications-btn" onClick={() => setShowNotifications(!showNotifications)}>
+            🔔 Notificaciones {notifications.length > 0 && `(${notifications.length})`}
+          </button>
+          <button className="logout-btn" onClick={onLogout}>
+            Cerrar Sesión
+          </button>
+        </div>
+      </div>
+
+      {/* Panel de Admin */}
+      {userData.rol === 'admin' && showAdminPanel && (
+        <div className="admin-panel">
+          <h3>Panel de Administrador</h3>
+          
+          {/* Estadísticas Generales */}
+          <div className="admin-stats">
+            <div className="stat-card">
+              <h4>Total de Tareas</h4>
+              <p>{estadisticasGenerales.totalTareas || 0}</p>
+            </div>
+            <div className="stat-card">
+              <h4>Total de Usuarios</h4>
+              <p>{estadisticasGenerales.totalUsuarios || 0}</p>
+            </div>
+            <div className="stat-card">
+              <h4>Tareas Pendientes</h4>
+              <p>{estadisticasGenerales.tareasPendientes || 0}</p>
+            </div>
+            <div className="stat-card">
+              <h4>Tareas Completadas</h4>
+              <p>{estadisticasGenerales.tareasCompletadas || 0}</p>
+            </div>
+            <div className="stat-card">
+              <h4>Tareas Vencidas</h4>
+              <p>{estadisticasGenerales.tareasVencidas || 0}</p>
+            </div>
+            <div className="stat-card">
+              <h4>Progreso Promedio</h4>
+              <p>{estadisticasGenerales.promedioProgreso || 0}%</p>
+            </div>
+          </div>
+
+          {/* Gestión de Usuarios */}
+          <div className="admin-users">
+            <h4>Gestión de Usuarios</h4>
+            <div className="users-list">
+              {usuarios.map(usuario => (
+                <div key={usuario.id} className="user-item">
+                  <div className="user-info">
+                    <span className="user-name">{usuario.nombre_completo}</span>
+                    <span className="user-login">{usuario.login}</span>
+                    <span className={`user-role ${usuario.rol}`}>{usuario.rol}</span>
+                    <span className={`user-status ${usuario.estado}`}>{usuario.estado}</span>
+                  </div>
+                  <div className="user-actions">
+                    {usuario.estado === 'pending' && (
+                      <>
+                        <button 
+                          className="approve-btn"
+                          onClick={() => cambiarEstadoUsuario(usuario.id, 'approved')}
+                        >
+                          Aprobar
+                        </button>
+                        <button 
+                          className="reject-btn"
+                          onClick={() => cambiarEstadoUsuario(usuario.id, 'rejected')}
+                        >
+                          Rechazar
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filtros */}
+      <div className="filters-container">
+        <div className="filters">
+          <div className="filter-group">
+            <input 
+              type="text" 
+              placeholder="Buscar tareas..."
+              value={filtros.search}
+              onChange={(e) => setFiltros({...filtros, search: e.target.value})}
+            />
+            <select 
+              value={filtros.priority}
+              onChange={(e) => setFiltros({...filtros, priority: e.target.value})}
+            >
+              <option value="">Todas las prioridades</option>
+              <option value="high">Alta</option>
+              <option value="medium">Media</option>
+              <option value="low">Baja</option>
+            </select>
+            <select 
+              value={filtros.status}
+              onChange={(e) => setFiltros({...filtros, status: e.target.value})}
+            >
+              <option value="">Todos los estados</option>
+              <option value="pending">Pendiente</option>
+              <option value="in_progress">En Progreso</option>
+              <option value="completed">Completada</option>
+              <option value="cancelled">Cancelada</option>
+            </select>
+            <select 
+              value={filtros.category}
+              onChange={(e) => setFiltros({...filtros, category: e.target.value})}
+            >
+              <option value="">Todas las categorías</option>
+              <option value="principal">Principal</option>
+              <option value="secundaria">Secundaria</option>
+              <option value="urgente">Urgente</option>
+            </select>
+          </div>
+          
+          <div className="filter-group">
+            <input 
+              type="date" 
+              value={filtros.due_date}
+              onChange={(e) => setFiltros({...filtros, due_date: e.target.value})}
+              title="Fecha de vencimiento"
+            />
+            <input 
+              type="text" 
+              placeholder="Filtrar por tags..."
+              value={filtros.tags}
+              onChange={(e) => setFiltros({...filtros, tags: e.target.value})}
+            />
+            <input 
+              type="number" 
+              placeholder="Progreso mín %"
+              value={filtros.progress_min}
+              onChange={(e) => setFiltros({...filtros, progress_min: e.target.value})}
+              min="0" max="100"
+            />
+            <input 
+              type="number" 
+              placeholder="Progreso máx %"
+              value={filtros.progress_max}
+              onChange={(e) => setFiltros({...filtros, progress_max: e.target.value})}
+              min="0" max="100"
+            />
+          </div>
+          
+          {/* Filtro especial para admin */}
+          {userData.rol === 'admin' && (
+            <div className="admin-filter">
+              <label className="checkbox-label">
+                <input 
+                  type="checkbox"
+                  checked={filtros.show_all}
+                  onChange={(e) => setFiltros({...filtros, show_all: e.target.checked})}
+                />
+                Ver todas las tareas del sistema
+              </label>
+            </div>
+          )}
+        </div>
+        
+        <button className="clear-filters-btn" onClick={() => setFiltros({
+          search: '',
+          priority: '',
+          status: '',
+          category: '',
+          due_date: '',
+          tags: '',
+          progress_min: '',
+          progress_max: '',
+          show_all: userData.rol === 'admin' ? filtros.show_all : false
+        })}>
+          Limpiar Filtros
+        </button>
+      </div>
+
+      {/* Notificaciones */}
+      {showNotifications && (
+        <div className="notifications-panel">
+          <h3>Notificaciones</h3>
+          {notifications.length === 0 ? (
+            <p>No hay notificaciones</p>
+          ) : (
+            notifications.map(notification => (
+              <div key={notification.id} className="notification-item">
+                <span className={`notification-type ${notification.type}`}>
+                  {notification.type === 'task_due' && '⏰'}
+                  {notification.type === 'task_assigned' && '👤'}
+                  {notification.type === 'task_completed' && '✅'}
+                  {notification.type === 'task_commented' && '💬'}
+                </span>
+                <span className="notification-message">{notification.message}</span>
+                <span className="notification-date">{new Date(notification.created_at).toLocaleString()}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Estadísticas */}
+      <div className="stats-container">
+        <div className="stats-item">
+          <h4>Total de Tareas</h4>
+          <p>{tareas.length}</p>
+        </div>
+        <div className="stats-item">
+          <h4>Completadas</h4>
+          <p>{tareas.filter(t => t.status === 'completed').length}</p>
+        </div>
+        <div className="stats-item">
+          <h4>Pendientes</h4>
+          <p>{tareas.filter(t => t.status === 'pending').length}</p>
+        </div>
+        <div className="stats-item">
+          <h4>En Progreso</h4>
+          <p>{tareas.filter(t => t.status === 'in_progress').length}</p>
+        </div>
+        <div className="stats-item">
+          <h4>Vencidas</h4>
+          <p>{tareas.filter(t => esTareaVencida(t.due_date, t.status)).length}</p>
+        </div>
+      </div>
+
+      {/* Formulario de nueva tarea */}
+      <div className="new-task-form">
+        <div className="form-header">
+          <h3>Nueva Tarea</h3>
+          <div className="form-mode-toggle">
+            <button 
+              className={`mode-btn ${modoCreacion === 'simple' ? 'active' : ''}`}
+              onClick={() => setModoCreacion('simple')}
+            >
+              Simple
+            </button>
+            <button 
+              className={`mode-btn ${modoCreacion === 'avanzado' ? 'active' : ''}`}
+              onClick={() => setModoCreacion('avanzado')}
+            >
+              Avanzado
+            </button>
+          </div>
+        </div>
+        
+        <form onSubmit={crearTarea} className="task-form">
+          <div className="form-row">
+            <input 
+              type="text" 
+              placeholder="Título de la tarea"
+              value={nuevaTarea.task}
+              onChange={(e) => setNuevaTarea({...nuevaTarea, task: e.target.value})}
+              required
+            />
+            <select 
+              value={nuevaTarea.priority}
+              onChange={(e) => setNuevaTarea({...nuevaTarea, priority: e.target.value})}
+            >
+              <option value="high">Alta</option>
+              <option value="medium">Media</option>
+              <option value="low">Baja</option>
+            </select>
+            <select 
+              value={nuevaTarea.status}
+              onChange={(e) => setNuevaTarea({...nuevaTarea, status: e.target.value})}
+            >
+              <option value="pending">Pendiente</option>
+              <option value="in_progress">En Progreso</option>
+              <option value="completed">Completada</option>
+              <option value="cancelled">Cancelada</option>
+            </select>
+          </div>
+          
+          {modoCreacion === 'avanzado' && (
+            <>
+              <div className="form-row">
+                <input 
+                  type="date" 
+                  value={nuevaTarea.due_date}
+                  onChange={(e) => setNuevaTarea({...nuevaTarea, due_date: e.target.value})}
+                  title="Fecha de vencimiento"
+                />
+                <input 
+                  type="date" 
+                  value={nuevaTarea.start_date}
+                  onChange={(e) => setNuevaTarea({...nuevaTarea, start_date: e.target.value})}
+                  title="Fecha de inicio"
+                />
+                <select 
+                  value={nuevaTarea.category}
+                  onChange={(e) => setNuevaTarea({...nuevaTarea, category: e.target.value})}
+                >
+                  <option value="principal">Principal</option>
+                  <option value="secundaria">Secundaria</option>
+                  <option value="urgente">Urgente</option>
+                </select>
+              </div>
+              
+              <div className="form-row">
+                <input 
+                  type="number" 
+                  placeholder="Progreso (%)"
+                  value={nuevaTarea.progress}
+                  onChange={(e) => setNuevaTarea({...nuevaTarea, progress: Math.max(0, Math.min(100, parseInt(e.target.value) || 0))})}
+                  min="0" max="100"
+                />
+                <input 
+                  type="number" 
+                  placeholder="Horas estimadas"
+                  value={nuevaTarea.estimated_hours}
+                  onChange={(e) => setNuevaTarea({...nuevaTarea, estimated_hours: e.target.value})}
+                  min="0" step="0.5"
+                />
+                <input 
+                  type="number" 
+                  placeholder="Horas reales"
+                  value={nuevaTarea.actual_hours}
+                  onChange={(e) => setNuevaTarea({...nuevaTarea, actual_hours: e.target.value})}
+                  min="0" step="0.5"
+                />
+              </div>
+              
+              <div className="form-row">
+                <input 
+                  type="text" 
+                  placeholder="Tags (separados por comas)"
+                  value={nuevaTarea.tags}
+                  onChange={(e) => setNuevaTarea({...nuevaTarea, tags: e.target.value})}
+                />
+                <select 
+                  value={nuevaTarea.parent_task || ''}
+                  onChange={(e) => setNuevaTarea({...nuevaTarea, parent_task: e.target.value || null})}
+                >
+                  <option value="">Sin tarea padre</option>
+                  {tareas.filter(t => t.status !== 'completed').map(tarea => (
+                    <option key={tarea.id} value={tarea.id}>{tarea.task}</option>
+                  ))}
+                </select>
+                <select 
+                  value={nuevaTarea.team || ''}
+                  onChange={(e) => setNuevaTarea({...nuevaTarea, team: e.target.value || null})}
+                >
+                  <option value="">Sin equipo</option>
+                  {teams.map(team => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Campo para asignar a otros usuarios (solo admin) */}
+              {userData.rol === 'admin' && (
+                <div className="form-row">
+                  <select 
+                    value={nuevaTarea.assigned_to || ''}
+                    onChange={(e) => setNuevaTarea({...nuevaTarea, assigned_to: e.target.value || null})}
+                  >
+                    <option value="">Asignar a mi mismo</option>
+                    {usuarios.filter(u => u.estado === 'approved').map(usuario => (
+                      <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              <div className="form-row">
+                <textarea 
+                  placeholder="Descripción de la tarea"
+                  value={nuevaTarea.description}
+                  onChange={(e) => setNuevaTarea({...nuevaTarea, description: e.target.value})}
+                  rows={3}
+                />
+              </div>
+            </>
+          )}
+          
+          <button type="submit" className="submit-btn">
+            Crear Tarea
+          </button>
+        </form>
+      </div>
+
+      {/* Lista de tareas */}
+      <div className="tasks-list">
+        {tareasFiltradas.length === 0 ? (
+          <p className="no-tasks">No hay tareas que coincidan con los filtros.</p>
+        ) : (
+          tareasFiltradas.map(tarea => (
+            <div key={tarea.id} className={`task-item ${tarea.status} priority-${tarea.priority}`}>
+              <div className="task-header">
+                <h4 className="task-title">{tarea.task}</h4>
+                <div className="task-badges">
+                  <span className={`priority-badge ${tarea.priority}`}>
+                    {tarea.priority === 'high' && '🔴'}
+                    {tarea.priority === 'medium' && '🟡'}
+                    {tarea.priority === 'low' && '🟢'}
+                    {tarea.priority}
+                  </span>
+                  <span className={`status-badge ${tarea.status}`}>
+                    {tarea.status === 'completed' && '✅'}
+                    {tarea.status === 'in_progress' && '🔄'}
+                    {tarea.status === 'pending' && '⏳'}
+                    {tarea.status === 'cancelled' && '❌'}
+                    {tarea.status}
+                  </span>
+                  <span className={`category-badge ${tarea.category}`}>
+                    {tarea.category}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="task-info">
+                <div className="task-dates">
+                  {tarea.due_date && (
+                    <span className={`due-date ${esTareaVencida(tarea.due_date, tarea.status) ? 'overdue' : ''}`}>
+                      📅 Vence: {new Date(tarea.due_date).toLocaleDateString()}
+                    </span>
+                  )}
+                  {tarea.start_date && (
+                    <span className="start-date">
+                      🚀 Inicio: {new Date(tarea.start_date).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                
+                <div className="task-progress">
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-fill" 
+                      style={{ width: `${tarea.progress}%` }}
+                    ></div>
+                  </div>
+                  <span className="progress-text">{tarea.progress}%</span>
+                </div>
+                
+                {tarea.tags && (
+                  <div className="task-tags">
+                    {tarea.tags.split(',').map((tag, index) => (
+                      <span key={index} className="tag">{tag.trim()}</span>
+                    ))}
+                  </div>
+                )}
+                
+                {tarea.description && (
+                  <p className="task-description">{tarea.description}</p>
+                )}
+                
+                {(tarea.estimated_hours || tarea.actual_hours) && (
+                  <div className="task-hours">
+                    {tarea.estimated_hours && <span>⏱️ Estimadas: {tarea.estimated_hours}h</span>}
+                    {tarea.actual_hours && <span>⏰ Reales: {tarea.actual_hours}h</span>}
+                  </div>
+                )}
+                
+                {/* Información adicional para admin */}
+                {userData.rol === 'admin' && filtros.show_all && (
+                  <div className="task-admin-info">
+                    <span className="assigned-user">
+                      👤 Asignado a: {obtenerNombreUsuario(tarea.user_id)}
+                    </span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="task-actions">
+                <button 
+                  className="action-btn view-btn"
+                  onClick={() => verDetalleTarea(tarea.id)}
+                >
+                  👁️ Ver
+                </button>
+                
+                {/* Botones para tareas propias o admin */}
+                {(tarea.user_id === userId || userData.rol === 'admin') && (
+                  <>
+                    <button 
+                      className="action-btn edit-btn"
+                      onClick={() => iniciarEdicion(tarea)}
+                    >
+                      ✏️ Editar
+                    </button>
+                    <button 
+                      className="action-btn delete-btn"
+                      onClick={() => userData.rol === 'admin' ? eliminarTareaAdmin(tarea.id) : eliminarTarea(tarea.id)}
+                    >
+                      🗑️ Eliminar
+                    </button>
+                  </>
+                )}
+                
+                {/* Botón para reasignar (solo admin) */}
+                {userData.rol === 'admin' && (
+                  <select 
+                    className="reassign-select"
+                    onChange={(e) => {
+                      if (e.target.value && window.confirm('¿Reasignar esta tarea?')) {
+                        reasignarTarea(tarea.id, e.target.value);
+                      }
+                      e.target.value = '';
+                    }}
+                  >
+                    <option value="">Reasignar a...</option>
+                    {usuarios.filter(u => u.estado === 'approved' && u.id !== tarea.user_id).map(usuario => (
+                      <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Estadísticas resumidas */}
+      <div className="task-stats">
+        <h3>Estadísticas</h3>
+        <div className="stats-grid">
+          <div className="stat-card">
+            <span className="stat-number">{tareas.length}</span>
+            <span className="stat-label">Total</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-number">{tareas.filter(t => t.status === 'pending').length}</span>
+            <span className="stat-label">Pendientes</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-number">{tareas.filter(t => t.status === 'in_progress').length}</span>
+            <span className="stat-label">En Progreso</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-number">{tareas.filter(t => t.status === 'completed').length}</span>
+            <span className="stat-label">Completadas</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-number">{tareas.filter(t => esTareaVencida(t.due_date, t.status)).length}</span>
+            <span className="stat-label">Vencidas</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-number">{tareas.filter(t => t.priority === 'urgent').length}</span>
+            <span className="stat-label">Urgentes</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-number">{tareas.filter(t => t.category === 'subtarea').length}</span>
+            <span className="stat-label">Subtareas</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-number">
+              {tareas.length > 0 ? Math.round(tareas.reduce((sum, t) => sum + (t.progress || 0), 0) / tareas.length) : 0}%
+            </span>
+            <span className="stat-label">Progreso Promedio</span>
+          </div>
+        </div>
+
+        {/* Estadísticas de tiempo */}
+        <div className="time-stats">
+          <h4>Estadísticas de Tiempo</h4>
+          <div className="time-stats-grid">
+            <div className="time-stat">
+              <span className="time-number">
+                {tareas.reduce((sum, t) => sum + (parseFloat(t.estimated_hours) || 0), 0).toFixed(1)}h
+              </span>
+              <span className="time-label">Horas Estimadas</span>
+            </div>
+            <div className="time-stat">
+              <span className="time-number">
+                {tareas.reduce((sum, t) => sum + (parseFloat(t.actual_hours) || 0), 0).toFixed(1)}h
+              </span>
+              <span className="time-label">Horas Reales</span>
+            </div>
+            <div className="time-stat">
+              <span className="time-number">
+                {tareas.filter(t => t.due_date && new Date(t.due_date) > new Date()).length}
+              </span>
+              <span className="time-label">Próximas a Vencer</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TaskManager;

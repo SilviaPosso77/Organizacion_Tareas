@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import './TaskManager.css';
 
-//tareas
 const TaskManager = ({ userId, userData, onLogout }) => {
+  // Estados principales
   const [tareas, setTareas] = useState([]);
   const [nuevaTarea, setNuevaTarea] = useState({
     task: '',
@@ -18,7 +18,8 @@ const TaskManager = ({ userId, userData, onLogout }) => {
     actual_hours: '',
     tags: '',
     parent_task: null,
-    team: null
+    team: null,
+    assigned_to: null
   });
   const [editandoTarea, setEditandoTarea] = useState(null);
   const [tareaEditada, setTareaEditada] = useState({});
@@ -30,84 +31,60 @@ const TaskManager = ({ userId, userData, onLogout }) => {
     due_date: '',
     tags: '',
     progress_min: '',
-    progress_max: ''
+    progress_max: '',
+    show_all: false
   });
   const [vistaDetalle, setVistaDetalle] = useState(null);
-  const [modoCreacion, setModoCreacion] = useState('simple'); // 'simple' o 'avanzado'
+  const [modoCreacion, setModoCreacion] = useState('simple');
   const [teams, setTeams] = useState([]);
-  const [colaboradores, setColaboradores] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [comentarios, setComentarios] = useState({});
   const [nuevoComentario, setNuevoComentario] = useState('');
   const [tareaSeleccionada, setTareaSeleccionada] = useState(null);
+  
+  // Estados específicos para admin
+  const [usuarios, setUsuarios] = useState([]);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [estadisticasGenerales, setEstadisticasGenerales] = useState({});
 
+  // URLs de API
   const API_URL = 'http://127.0.0.1:8000/api/task/';
   const TEAM_API_URL = 'http://127.0.0.1:8000/api/team/';
-  const COLLABORATOR_API_URL = 'http://127.0.0.1:8000/api/collaborator/';
   const NOTIFICATION_API_URL = 'http://127.0.0.1:8000/api/notification/';
   const COMMENT_API_URL = 'http://127.0.0.1:8000/api/comment/';
 
-  // Opciones para los select
-  const prioridadOpciones = [
-    { value: 'low', label: 'Baja', color: '#28a745' },
-    { value: 'medium', label: 'Media', color: '#ffc107' },
-    { value: 'high', label: 'Alta', color: '#fd7e14' },
-    { value: 'urgent', label: 'Urgente', color: '#dc3545' }
-  ];
-
-  const estadoOpciones = [
-    { value: 'pending', label: 'Pendiente', color: '#6c757d' },
-    { value: 'in_progress', label: 'En Progreso', color: '#007bff' },
-    { value: 'completed', label: 'Completada', color: '#28a745' },
-    { value: 'cancelled', label: 'Cancelada', color: '#dc3545' },
-    { value: 'on_hold', label: 'En Espera', color: '#ffc107' }
-  ];
-
-  const categoriaOpciones = [
-    { value: 'principal', label: 'Principal' },
-    { value: 'subtarea', label: 'Subtarea' }
-  ];
-
-  // Obtener tareas al cargar y cuando cambien los filtros
-  useEffect(() => {
-    obtenerTareas();
-    obtenerTeams();
-    obtenerNotifications();
-  }, [filtros]);
-
-  // Función para obtener equipos
-  const obtenerTeams = async () => {
-    try {
-      const response = await axios.get(`${TEAM_API_URL}?user_id=${userId}`);
-      setTeams(response.data);
-    } catch (error) {
-      console.error('Error al obtener equipos:', error);
-    }
+  // Funciones auxiliares
+  const esTareaVencida = (dueDate, status) => {
+    if (!dueDate || status === 'completed') return false;
+    const hoy = new Date();
+    const fechaVencimiento = new Date(dueDate);
+    return fechaVencimiento < hoy;
   };
 
-  // Función para obtener notificaciones
-  const obtenerNotifications = async () => {
-    try {
-      const response = await axios.get(`${NOTIFICATION_API_URL}?user_id=${userId}`);
-      setNotifications(response.data);
-    } catch (error) {
-      console.error('Error al obtener notificaciones:', error);
-    }
+  const formatearFecha = (fecha) => {
+    if (!fecha) return '';
+    return new Date(fecha).toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
   };
 
-  // Función para obtener comentarios de una tarea
-  const obtenerComentarios = async (taskId) => {
-    try {
-      const response = await axios.get(`${COMMENT_API_URL}?task_id=${taskId}`);
-      setComentarios(prev => ({...prev, [taskId]: response.data}));
-    } catch (error) {
-      console.error('Error al obtener comentarios:', error);
-    }
+  const obtenerNombreUsuario = (userId) => {
+    const usuario = usuarios.find(u => u.id === userId);
+    return usuario ? usuario.nombre_completo : 'Usuario desconocido';
   };
 
+  // Funciones de API
   const construirURLConFiltros = () => {
-    let url = `${API_URL}?user_id=${userId}`;
+    let url = `${API_URL}`;
+    
+    if (userData?.rol === 'admin' && filtros.show_all) {
+      url += '?show_all=true';
+    } else {
+      url += `?user_id=${userId}`;
+    }
     
     if (filtros.search && filtros.search.length >= 3) {
       url += `&search=${encodeURIComponent(filtros.search)}`;
@@ -147,53 +124,95 @@ const TaskManager = ({ userId, userData, onLogout }) => {
     }
   };
 
-  const crearTarea = async () => {
+  const obtenerTeams = async () => {
+    try {
+      const response = await axios.get(`${TEAM_API_URL}?user_id=${userId}`);
+      setTeams(response.data);
+    } catch (error) {
+      console.error('Error al obtener equipos:', error);
+    }
+  };
+
+  const obtenerNotifications = async () => {
+    try {
+      const response = await axios.get(`${NOTIFICATION_API_URL}?user_id=${userId}`);
+      setNotifications(response.data);
+    } catch (error) {
+      console.error('Error al obtener notificaciones:', error);
+    }
+  };
+
+  const obtenerComentarios = async (taskId) => {
+    try {
+      const response = await axios.get(`${COMMENT_API_URL}?task_id=${taskId}`);
+      setComentarios(prev => ({
+        ...prev,
+        [taskId]: response.data
+      }));
+    } catch (error) {
+      console.error('Error al obtener comentarios:', error);
+    }
+  };
+
+  const obtenerUsuarios = async () => {
+    if (userData?.rol !== 'admin') return;
+    
+    try {
+      const response = await axios.get('http://127.0.0.1:8000/api/login/');
+      setUsuarios(response.data);
+    } catch (error) {
+      console.error('Error al obtener usuarios:', error);
+    }
+  };
+
+  const obtenerEstadisticasGenerales = async () => {
+    if (userData?.rol !== 'admin') return;
+    
+    try {
+      const response = await axios.get(`${API_URL}?show_all=true`);
+      const todasLasTareas = response.data;
+      
+      setEstadisticasGenerales({
+        totalTareas: todasLasTareas.length,
+        totalUsuarios: usuarios.length,
+        tareasPendientes: todasLasTareas.filter(t => t.status === 'pending').length,
+        tareasCompletadas: todasLasTareas.filter(t => t.status === 'completed').length,
+        tareasVencidas: todasLasTareas.filter(t => esTareaVencida(t.due_date, t.status)).length,
+        promedioProgreso: todasLasTareas.length > 0 ? 
+          Math.round(todasLasTareas.reduce((sum, t) => sum + (t.progress || 0), 0) / todasLasTareas.length) : 0
+      });
+    } catch (error) {
+      console.error('Error al obtener estadísticas generales:', error);
+    }
+  };
+
+  const crearTarea = async (e) => {
+    e.preventDefault();
+    
     if (!nuevaTarea.task.trim()) {
-      alert('El nombre de la tarea es requerido');
+      alert('El título de la tarea es requerido');
       return;
     }
-
+    
     try {
       const tareaData = {
-        task: nuevaTarea.task,
-        user_id: userId,
-        priority: nuevaTarea.priority,
-        status: nuevaTarea.status,
-        category: nuevaTarea.category,
-        description: nuevaTarea.description,
-        progress: parseInt(nuevaTarea.progress) || 0
+        ...nuevaTarea,
+        user_id: nuevaTarea.assigned_to || userId,
+        tags: nuevaTarea.tags || '',
+        progress: parseInt(nuevaTarea.progress) || 0,
+        estimated_hours: parseFloat(nuevaTarea.estimated_hours) || null,
+        actual_hours: parseFloat(nuevaTarea.actual_hours) || null,
+        parent_task: nuevaTarea.parent_task || null,
+        team: nuevaTarea.team || null,
+        due_date: nuevaTarea.due_date || null,
+        start_date: nuevaTarea.start_date || null,
+        description: nuevaTarea.description || ''
       };
-
-      // Solo agregar fechas si están definidas
-      if (nuevaTarea.due_date) {
-        tareaData.due_date = nuevaTarea.due_date;
-      }
-      if (nuevaTarea.start_date) {
-        tareaData.start_date = nuevaTarea.start_date;
-      }
       
-      // Agregar campos numéricos si están definidos
-      if (nuevaTarea.estimated_hours) {
-        tareaData.estimated_hours = parseFloat(nuevaTarea.estimated_hours);
-      }
-      if (nuevaTarea.actual_hours) {
-        tareaData.actual_hours = parseFloat(nuevaTarea.actual_hours);
-      }
+      delete tareaData.assigned_to;
       
-      // Agregar campos de texto
-      if (nuevaTarea.tags) {
-        tareaData.tags = nuevaTarea.tags;
-      }
-      if (nuevaTarea.parent_task) {
-        tareaData.parent_task = nuevaTarea.parent_task;
-      }
-      if (nuevaTarea.team) {
-        tareaData.team = nuevaTarea.team;
-      }
-
       await axios.post(API_URL, tareaData);
       
-      // Resetear formulario
       setNuevaTarea({
         task: '',
         priority: 'medium',
@@ -207,10 +226,12 @@ const TaskManager = ({ userId, userData, onLogout }) => {
         actual_hours: '',
         tags: '',
         parent_task: null,
-        team: null
+        team: null,
+        assigned_to: null
       });
       
-      obtenerTareas(); // Refrescar la lista
+      obtenerTareas();
+      alert('Tarea creada exitosamente');
     } catch (error) {
       console.error('Error al crear tarea:', error);
       alert('Error al crear la tarea');
@@ -221,9 +242,9 @@ const TaskManager = ({ userId, userData, onLogout }) => {
     setEditandoTarea(tarea.id);
     setTareaEditada({
       task: tarea.task,
-      priority: tarea.priority || 'medium',
-      status: tarea.status || 'pending',
-      category: tarea.category || 'principal',
+      priority: tarea.priority,
+      status: tarea.status,
+      category: tarea.category,
       due_date: tarea.due_date || '',
       description: tarea.description || '',
       start_date: tarea.start_date || '',
@@ -236,59 +257,27 @@ const TaskManager = ({ userId, userData, onLogout }) => {
     });
   };
 
-  const cancelarEdicion = () => {
-    setEditandoTarea(null);
-    setTareaEditada({});
-  };
-
-  const actualizarTarea = async (id) => {
-    if (!tareaEditada.task?.trim()) {
-      alert('El nombre de la tarea es requerido');
-      return;
-    }
-
+  const guardarEdicion = async (id) => {
     try {
       const tareaData = {
-        task: tareaEditada.task,
+        ...tareaEditada,
         user_id: userId,
-        priority: tareaEditada.priority,
-        status: tareaEditada.status,
-        category: tareaEditada.category,
-        description: tareaEditada.description,
-        progress: parseInt(tareaEditada.progress) || 0
+        tags: tareaEditada.tags || '',
+        progress: parseInt(tareaEditada.progress) || 0,
+        estimated_hours: parseFloat(tareaEditada.estimated_hours) || null,
+        actual_hours: parseFloat(tareaEditada.actual_hours) || null,
+        parent_task: tareaEditada.parent_task || null,
+        team: tareaEditada.team || null,
+        due_date: tareaEditada.due_date || null,
+        start_date: tareaEditada.start_date || null,
+        description: tareaEditada.description || ''
       };
-
-      // Solo agregar fechas si están definidas
-      if (tareaEditada.due_date) {
-        tareaData.due_date = tareaEditada.due_date;
-      }
-      if (tareaEditada.start_date) {
-        tareaData.start_date = tareaEditada.start_date;
-      }
       
-      // Agregar campos numéricos si están definidos
-      if (tareaEditada.estimated_hours) {
-        tareaData.estimated_hours = parseFloat(tareaEditada.estimated_hours);
-      }
-      if (tareaEditada.actual_hours) {
-        tareaData.actual_hours = parseFloat(tareaEditada.actual_hours);
-      }
-      
-      // Agregar campos de texto
-      if (tareaEditada.tags) {
-        tareaData.tags = tareaEditada.tags;
-      }
-      if (tareaEditada.parent_task) {
-        tareaData.parent_task = tareaEditada.parent_task;
-      }
-      if (tareaEditada.team) {
-        tareaData.team = tareaEditada.team;
-      }
-
       await axios.put(`${API_URL}${id}/`, tareaData);
       setEditandoTarea(null);
       setTareaEditada({});
       obtenerTareas();
+      alert('Tarea actualizada exitosamente');
     } catch (error) {
       console.error('Error al actualizar tarea:', error);
       alert('Error al actualizar la tarea');
@@ -300,6 +289,7 @@ const TaskManager = ({ userId, userData, onLogout }) => {
       try {
         await axios.delete(`${API_URL}${id}/`);
         obtenerTareas();
+        alert('Tarea eliminada exitosamente');
       } catch (error) {
         console.error('Error al eliminar tarea:', error);
         alert('Error al eliminar la tarea');
@@ -307,935 +297,615 @@ const TaskManager = ({ userId, userData, onLogout }) => {
     }
   };
 
-  const marcarComoCompletada = async (id) => {
-    try {
-      await axios.put(`${API_URL}${id}/`, {
-        status: 'completed',
-        user_id: userId
-      });
-      obtenerTareas();
-    } catch (error) {
-      console.error('Error al completar tarea:', error);
+  const eliminarTareaAdmin = async (id) => {
+    if (userData?.rol !== 'admin') {
+      alert('No tienes permisos para eliminar esta tarea');
+      return;
     }
-  };
 
-  const formatearFecha = (fecha) => {
-    if (!fecha) return '';
-    return new Date(fecha).toLocaleDateString('es-ES');
-  };
-
-  const obtenerColorPrioridad = (priority) => {
-    const opcion = prioridadOpciones.find(p => p.value === priority);
-    return opcion ? opcion.color : '#6c757d';
-  };
-
-  const obtenerColorEstado = (status) => {
-    const opcion = estadoOpciones.find(s => s.value === status);
-    return opcion ? opcion.color : '#6c757d';
-  };
-
-  const esTareaVencida = (due_date, status) => {
-    if (!due_date || status === 'completed') return false;
-    return new Date(due_date) < new Date();
-  };
-
-  const handleKeyPress = (e, action, id = null) => {
-    if (e.key === 'Enter') {
-      if (action === 'crear') {
-        crearTarea();
-      } else if (action === 'actualizar') {
-        actualizarTarea(id);
+    if (window.confirm('¿Estás seguro de que quieres eliminar esta tarea? (Acción de administrador)')) {
+      try {
+        await axios.delete(`${API_URL}${id}/`);
+        obtenerTareas();
+        alert('Tarea eliminada exitosamente');
+      } catch (error) {
+        console.error('Error al eliminar tarea:', error);
+        alert('Error al eliminar la tarea');
       }
     }
   };
 
-  const limpiarFiltros = () => {
-    setFiltros({
-      search: '',
-      priority: '',
-      status: '',
-      category: '',
-      due_date: '',
-      tags: '',
-      progress_min: '',
-      progress_max: ''
-    });
-  };
-
-  // Función para agregar comentario
-  const agregarComentario = async (taskId) => {
-    if (!nuevoComentario.trim()) {
-      alert('El comentario no puede estar vacío');
+  const reasignarTarea = async (tareaId, nuevoUsuarioId) => {
+    if (userData?.rol !== 'admin') {
+      alert('No tienes permisos para reasignar tareas');
       return;
     }
 
     try {
+      await axios.put(`${API_URL}${tareaId}/`, {
+        user_id: nuevoUsuarioId
+      });
+      
+      alert('Tarea reasignada exitosamente');
+      obtenerTareas();
+    } catch (error) {
+      console.error('Error al reasignar tarea:', error);
+      alert('Error al reasignar la tarea');
+    }
+  };
+
+  const cambiarEstadoUsuario = async (usuarioId, nuevoEstado) => {
+    if (userData?.rol !== 'admin') {
+      alert('No tienes permisos para cambiar el estado de usuarios');
+      return;
+    }
+
+    try {
+      await axios.put(`http://127.0.0.1:8000/api/login/${usuarioId}/`, {
+        estado: nuevoEstado
+      });
+      
+      alert(`Usuario ${nuevoEstado === 'approved' ? 'aprobado' : 'rechazado'} exitosamente`);
+      obtenerUsuarios();
+    } catch (error) {
+      console.error('Error al cambiar estado del usuario:', error);
+      alert('Error al cambiar el estado del usuario');
+    }
+  };
+
+  const verDetalleTarea = async (id) => {
+    try {
+      const response = await axios.get(`${API_URL}${id}/`);
+      setVistaDetalle(response.data);
+      setTareaSeleccionada(id);
+      obtenerComentarios(id);
+    } catch (error) {
+      console.error('Error al obtener detalle:', error);
+    }
+  };
+
+  const cerrarVistaDetalle = () => {
+    setVistaDetalle(null);
+    setTareaSeleccionada(null);
+  };
+
+  const agregarComentario = async (taskId) => {
+    if (!nuevoComentario.trim()) return;
+    
+    try {
       await axios.post(COMMENT_API_URL, {
-        task: taskId,
+        task_id: taskId,
         user_id: userId,
-        comment: nuevoComentario
+        comment: nuevoComentario,
+        created_at: new Date().toISOString()
       });
       
       setNuevoComentario('');
       obtenerComentarios(taskId);
     } catch (error) {
       console.error('Error al agregar comentario:', error);
-      alert('Error al agregar el comentario');
     }
   };
 
-  // Función para asignar colaborador
-  const asignarColaborador = async (taskId, collaboratorId, role = 'viewer') => {
-    try {
-      await axios.post(COLLABORATOR_API_URL, {
-        task: taskId,
-        user: collaboratorId,
-        assigned_by: userId,
-        role: role
-      });
-      
-      alert('Colaborador asignado exitosamente');
-      obtenerTareas();
-    } catch (error) {
-      console.error('Error al asignar colaborador:', error);
-      alert('Error al asignar el colaborador');
-    }
+  const cancelarEdicion = () => {
+    setEditandoTarea(null);
+    setTareaEditada({});
   };
 
-  // Función para marcar notificación como leída
-  const marcarNotificacionLeida = async (notificationId) => {
-    try {
-      await axios.put(`${NOTIFICATION_API_URL}${notificationId}/`, {
-        is_read: true
-      });
-      
-      obtenerNotifications();
-    } catch (error) {
-      console.error('Error al marcar notificación como leída:', error);
-    }
-  };
-
-  // Función para obtener subtareas
-  const obtenerSubtareas = (taskId) => {
-    return tareas.filter(t => t.parent_task === taskId);
-  };
-
-  // Función para calcular progreso de tarea principal basado en subtareas
-  const calcularProgresoSubtareas = (taskId) => {
-    const subtareas = obtenerSubtareas(taskId);
-    if (subtareas.length === 0) return 0;
+  // Filtrar tareas
+  const tareasFiltradas = tareas.filter(tarea => {
+    const matchesSearch = !filtros.search || 
+                         tarea.task.toLowerCase().includes(filtros.search.toLowerCase()) ||
+                         (tarea.description && tarea.description.toLowerCase().includes(filtros.search.toLowerCase()));
+    const matchesPriority = !filtros.priority || tarea.priority === filtros.priority;
+    const matchesStatus = !filtros.status || tarea.status === filtros.status;
+    const matchesCategory = !filtros.category || tarea.category === filtros.category;
+    const matchesDueDate = !filtros.due_date || tarea.due_date === filtros.due_date;
+    const matchesTags = !filtros.tags || (tarea.tags && tarea.tags.toLowerCase().includes(filtros.tags.toLowerCase()));
+    const matchesProgressMin = !filtros.progress_min || tarea.progress >= parseInt(filtros.progress_min);
+    const matchesProgressMax = !filtros.progress_max || tarea.progress <= parseInt(filtros.progress_max);
     
-    const subtareasCompletadas = subtareas.filter(s => s.status === 'completed').length;
-    return Math.round((subtareasCompletadas / subtareas.length) * 100);
-  };
+    return matchesSearch && matchesPriority && matchesStatus && matchesCategory && 
+           matchesDueDate && matchesTags && matchesProgressMin && matchesProgressMax;
+  });
+
+  // Effects
+  useEffect(() => {
+    obtenerTareas();
+    obtenerTeams();
+    obtenerNotifications();
+    
+    if (userData?.rol === 'admin') {
+      obtenerUsuarios();
+    }
+  }, [filtros, userData]);
+
+  useEffect(() => {
+    if (userData?.rol === 'admin' && usuarios.length > 0) {
+      obtenerEstadisticasGenerales();
+    }
+  }, [usuarios, userData]);
 
   return (
     <div className="task-manager">
-      {/* Header con información del usuario */}
       <div className="header">
         <div className="user-info">
-          <h3>Bienvenido, {userData?.nombre_completo || 'Usuario'}</h3>
-          <span className="user-role">Rol: {userData?.rol || 'user'}</span>
-          <small>ID: {userId}</small>
-        </div>
-        
-        <div className="header-actions">
-          <div className="notifications-section">
+          <h2>Bienvenido, {userData.nombre_completo}</h2>
+          <p>Rol: <span className={`role-badge ${userData.rol}`}>{userData.rol}</span></p>
+          {userData.rol === 'admin' && (
             <button 
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="notifications-btn"
+              className="admin-panel-btn"
+              onClick={() => setShowAdminPanel(!showAdminPanel)}
             >
-              🔔 Notificaciones ({notifications.filter(n => !n.is_read).length})
+              {showAdminPanel ? 'Ocultar' : 'Mostrar'} Panel de Admin
             </button>
-            
-            {showNotifications && (
-              <div className="notifications-dropdown">
-                {notifications.length === 0 ? (
-                  <p className="no-notifications">No hay notificaciones</p>
-                ) : (
-                  notifications.slice(0, 5).map(notification => (
-                    <div key={notification.id} className={`notification-item ${notification.is_read ? 'read' : 'unread'}`}>
-                      <h5>{notification.title}</h5>
-                      <p>{notification.message}</p>
-                      <small>{formatearFecha(notification.created_at)}</small>
-                      {!notification.is_read && (
-                        <button 
-                          onClick={() => marcarNotificacionLeida(notification.id)}
-                          className="mark-read-btn"
-                        >
-                          Marcar como leída
-                        </button>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-          
-          <button onClick={onLogout} className="logout-btn">
+          )}
+        </div>
+        <div className="header-actions">
+          <button className="notifications-btn" onClick={() => setShowNotifications(!showNotifications)}>
+            🔔 Notificaciones {notifications.length > 0 && `(${notifications.length})`}
+          </button>
+          <button className="logout-btn" onClick={onLogout}>
             Cerrar Sesión
           </button>
         </div>
       </div>
 
-      {/* Filtros y búsqueda */}
-      <div className="filters-section">
-        <h3>Filtros y Búsqueda</h3>
-        <div className="filters-grid">
+      {/* Panel de Admin */}
+      {userData.rol === 'admin' && showAdminPanel && (
+        <div className="admin-panel">
+          <h3>Panel de Administrador</h3>
+          
+          {/* Estadísticas Generales */}
+          <div className="admin-stats">
+            <div className="stat-card">
+              <h4>Total de Tareas</h4>
+              <p>{estadisticasGenerales.totalTareas || 0}</p>
+            </div>
+            <div className="stat-card">
+              <h4>Total de Usuarios</h4>
+              <p>{estadisticasGenerales.totalUsuarios || 0}</p>
+            </div>
+            <div className="stat-card">
+              <h4>Tareas Pendientes</h4>
+              <p>{estadisticasGenerales.tareasPendientes || 0}</p>
+            </div>
+            <div className="stat-card">
+              <h4>Tareas Completadas</h4>
+              <p>{estadisticasGenerales.tareasCompletadas || 0}</p>
+            </div>
+            <div className="stat-card">
+              <h4>Tareas Vencidas</h4>
+              <p>{estadisticasGenerales.tareasVencidas || 0}</p>
+            </div>
+            <div className="stat-card">
+              <h4>Progreso Promedio</h4>
+              <p>{estadisticasGenerales.promedioProgreso || 0}%</p>
+            </div>
+          </div>
+
+          {/* Gestión de Usuarios */}
+          <div className="admin-users">
+            <h4>Gestión de Usuarios</h4>
+            <div className="users-list">
+              {usuarios.map(usuario => (
+                <div key={usuario.id} className="user-item">
+                  <div className="user-info">
+                    <span className="user-name">{usuario.nombre_completo}</span>
+                    <span className="user-login">{usuario.documento_identidad}</span>
+                    <span className={`user-role ${usuario.rol}`}>{usuario.rol}</span>
+                    <span className={`user-status ${usuario.estado}`}>{usuario.estado}</span>
+                  </div>
+                  <div className="user-actions">
+                    {usuario.estado === 'pending' && (
+                      <>
+                        <button 
+                          className="approve-btn"
+                          onClick={() => cambiarEstadoUsuario(usuario.id, 'approved')}
+                        >
+                          Aprobar
+                        </button>
+                        <button 
+                          className="reject-btn"
+                          onClick={() => cambiarEstadoUsuario(usuario.id, 'rejected')}
+                        >
+                          Rechazar
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notificaciones */}
+      {showNotifications && (
+        <div className="notifications-panel">
+          <h3>Notificaciones</h3>
+          {notifications.length === 0 ? (
+            <p>No hay notificaciones</p>
+          ) : (
+            notifications.map(notification => (
+              <div key={notification.id} className="notification-item">
+                <span className={`notification-type ${notification.type}`}>
+                  {notification.type === 'task_due' && '⏰'}
+                  {notification.type === 'task_assigned' && '👤'}
+                  {notification.type === 'task_completed' && '✅'}
+                  {notification.type === 'task_commented' && '💬'}
+                </span>
+                <span className="notification-message">{notification.message}</span>
+                <span className="notification-date">{new Date(notification.created_at).toLocaleString()}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Filtros */}
+      <div className="filters-container">
+        <div className="filters">
           <div className="filter-group">
-            <label>Buscar tarea (mín. 3 caracteres):</label>
-            <input
-              type="text"
+            <input 
+              type="text" 
               placeholder="Buscar tareas..."
               value={filtros.search}
               onChange={(e) => setFiltros({...filtros, search: e.target.value})}
-              className="filter-input"
             />
-          </div>
-
-          <div className="filter-group">
-            <label>Prioridad:</label>
-            <select
+            <select 
               value={filtros.priority}
               onChange={(e) => setFiltros({...filtros, priority: e.target.value})}
-              className="filter-select"
             >
-              <option value="">Todas</option>
-              {prioridadOpciones.map(p => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
+              <option value="">Todas las prioridades</option>
+              <option value="high">Alta</option>
+              <option value="medium">Media</option>
+              <option value="low">Baja</option>
             </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Estado:</label>
-            <select
+            <select 
               value={filtros.status}
               onChange={(e) => setFiltros({...filtros, status: e.target.value})}
-              className="filter-select"
             >
-              <option value="">Todos</option>
-              {estadoOpciones.map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
+              <option value="">Todos los estados</option>
+              <option value="pending">Pendiente</option>
+              <option value="in_progress">En Progreso</option>
+              <option value="completed">Completada</option>
+              <option value="cancelled">Cancelada</option>
             </select>
           </div>
-
-          <div className="filter-group">
-            <label>Categoría:</label>
-            <select
-              value={filtros.category}
-              onChange={(e) => setFiltros({...filtros, category: e.target.value})}
-              className="filter-select"
-            >
-              <option value="">Todas</option>
-              {categoriaOpciones.map(c => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Fecha límite:</label>
-            <input
-              type="date"
-              value={filtros.due_date}
-              onChange={(e) => setFiltros({...filtros, due_date: e.target.value})}
-              className="filter-input"
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Etiquetas:</label>
-            <input
-              type="text"
-              placeholder="Buscar por etiquetas..."
-              value={filtros.tags}
-              onChange={(e) => setFiltros({...filtros, tags: e.target.value})}
-              className="filter-input"
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Progreso mínimo (%):</label>
-            <input
-              type="number"
-              placeholder="0"
-              min="0"
-              max="100"
-              value={filtros.progress_min}
-              onChange={(e) => setFiltros({...filtros, progress_min: e.target.value})}
-              className="filter-input"
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Progreso máximo (%):</label>
-            <input
-              type="number"
-              placeholder="100"
-              min="0"
-              max="100"
-              value={filtros.progress_max}
-              onChange={(e) => setFiltros({...filtros, progress_max: e.target.value})}
-              className="filter-input"
-            />
-          </div>
-
-          <div className="filter-actions">
-            <button onClick={limpiarFiltros} className="btn btn-secondary">
-              Limpiar Filtros
-            </button>
-          </div>
+          
+          {/* Filtro especial para admin */}
+          {userData.rol === 'admin' && (
+            <div className="admin-filter">
+              <label className="checkbox-label">
+                <input 
+                  type="checkbox"
+                  checked={filtros.show_all}
+                  onChange={(e) => setFiltros({...filtros, show_all: e.target.checked})}
+                />
+                Ver todas las tareas del sistema
+              </label>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Formulario para crear nueva tarea */}
-      <div className="task-form">
+      {/* Estadísticas */}
+      <div className="stats-container">
+        <div className="stats-item">
+          <h4>Total de Tareas</h4>
+          <p>{tareas.length}</p>
+        </div>
+        <div className="stats-item">
+          <h4>Completadas</h4>
+          <p>{tareas.filter(t => t.status === 'completed').length}</p>
+        </div>
+        <div className="stats-item">
+          <h4>Pendientes</h4>
+          <p>{tareas.filter(t => t.status === 'pending').length}</p>
+        </div>
+        <div className="stats-item">
+          <h4>En Progreso</h4>
+          <p>{tareas.filter(t => t.status === 'in_progress').length}</p>
+        </div>
+        <div className="stats-item">
+          <h4>Vencidas</h4>
+          <p>{tareas.filter(t => esTareaVencida(t.due_date, t.status)).length}</p>
+        </div>
+      </div>
+
+      {/* Formulario de nueva tarea */}
+      <div className="new-task-form">
         <div className="form-header">
-          <h2>Crear Nueva Tarea</h2>
-          <div className="mode-toggle">
+          <h3>Nueva Tarea</h3>
+          <div className="form-mode-toggle">
             <button 
-              className={modoCreacion === 'simple' ? 'active' : ''}
+              className={`mode-btn ${modoCreacion === 'simple' ? 'active' : ''}`}
               onClick={() => setModoCreacion('simple')}
             >
               Simple
             </button>
             <button 
-              className={modoCreacion === 'avanzado' ? 'active' : ''}
+              className={`mode-btn ${modoCreacion === 'avanzado' ? 'active' : ''}`}
               onClick={() => setModoCreacion('avanzado')}
             >
               Avanzado
             </button>
           </div>
         </div>
-
-        <div className="form-content">
-          {/* Campos básicos (siempre visibles) */}
-          <div className="form-group">
-            <label>Nombre de la tarea *:</label>
-            <input
-              type="text"
-              placeholder="Escribe tu nueva tarea..."
+        
+        <form onSubmit={crearTarea} className="task-form">
+          <div className="form-row">
+            <input 
+              type="text" 
+              placeholder="Título de la tarea"
               value={nuevaTarea.task}
               onChange={(e) => setNuevaTarea({...nuevaTarea, task: e.target.value})}
-              onKeyPress={(e) => handleKeyPress(e, 'crear')}
-              className="task-input"
-              maxLength="200"
+              required
             />
+            <select 
+              value={nuevaTarea.priority}
+              onChange={(e) => setNuevaTarea({...nuevaTarea, priority: e.target.value})}
+            >
+              <option value="high">Alta</option>
+              <option value="medium">Media</option>
+              <option value="low">Baja</option>
+            </select>
+            <select 
+              value={nuevaTarea.status}
+              onChange={(e) => setNuevaTarea({...nuevaTarea, status: e.target.value})}
+            >
+              <option value="pending">Pendiente</option>
+              <option value="in_progress">En Progreso</option>
+              <option value="completed">Completada</option>
+              <option value="cancelled">Cancelada</option>
+            </select>
           </div>
-
-          {/* Campos avanzados (solo en modo avanzado) */}
+          
           {modoCreacion === 'avanzado' && (
             <>
               <div className="form-row">
-                <div className="form-group">
-                  <label>Prioridad:</label>
-                  <select
-                    value={nuevaTarea.priority}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, priority: e.target.value})}
-                    className="form-select"
-                  >
-                    {prioridadOpciones.map(p => (
-                      <option key={p.value} value={p.value}>{p.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Estado:</label>
-                  <select
-                    value={nuevaTarea.status}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, status: e.target.value})}
-                    className="form-select"
-                  >
-                    {estadoOpciones.map(s => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Categoría:</label>
-                  <select
-                    value={nuevaTarea.category}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, category: e.target.value})}
-                    className="form-select"
-                  >
-                    {categoriaOpciones.map(c => (
-                      <option key={c.value} value={c.value}>{c.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Fecha de inicio:</label>
-                  <input
-                    type="date"
-                    value={nuevaTarea.start_date}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, start_date: e.target.value})}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Fecha límite:</label>
-                  <input
-                    type="date"
-                    value={nuevaTarea.due_date}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, due_date: e.target.value})}
-                    className="form-input"
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>Descripción:</label>
-                <textarea
-                  placeholder="Descripción detallada de la tarea..."
-                  value={nuevaTarea.description}
-                  onChange={(e) => setNuevaTarea({...nuevaTarea, description: e.target.value})}
-                  className="form-textarea"
-                  maxLength="500"
-                  rows="3"
+                <input 
+                  type="date" 
+                  value={nuevaTarea.due_date}
+                  onChange={(e) => setNuevaTarea({...nuevaTarea, due_date: e.target.value})}
+                  title="Fecha de vencimiento"
                 />
+                <select 
+                  value={nuevaTarea.category}
+                  onChange={(e) => setNuevaTarea({...nuevaTarea, category: e.target.value})}
+                >
+                  <option value="principal">Principal</option>
+                  <option value="secundaria">Secundaria</option>
+                  <option value="urgente">Urgente</option>
+                </select>
               </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Progreso (%):</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    min="0"
-                    max="100"
-                    value={nuevaTarea.progress}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, progress: e.target.value})}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Horas estimadas:</label>
-                  <input
-                    type="number"
-                    placeholder="0.0"
-                    min="0"
-                    step="0.5"
-                    value={nuevaTarea.estimated_hours}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, estimated_hours: e.target.value})}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Horas reales:</label>
-                  <input
-                    type="number"
-                    placeholder="0.0"
-                    min="0"
-                    step="0.5"
-                    value={nuevaTarea.actual_hours}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, actual_hours: e.target.value})}
-                    className="form-input"
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Etiquetas (separadas por comas):</label>
-                  <input
-                    type="text"
-                    placeholder="trabajo, urgente, cliente..."
-                    value={nuevaTarea.tags}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, tags: e.target.value})}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Tarea principal:</label>
-                  <select
-                    value={nuevaTarea.parent_task || ''}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, parent_task: e.target.value || null})}
-                    className="form-select"
+              
+              {/* Campo para asignar a otros usuarios (solo admin) */}
+              {userData.rol === 'admin' && (
+                <div className="form-row">
+                  <select 
+                    value={nuevaTarea.assigned_to || ''}
+                    onChange={(e) => setNuevaTarea({...nuevaTarea, assigned_to: e.target.value || null})}
                   >
-                    <option value="">Ninguna (tarea principal)</option>
-                    {tareas.filter(t => t.category === 'principal').map(t => (
-                      <option key={t.id} value={t.id}>{t.task}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {teams.length > 0 && (
-                <div className="form-group">
-                  <label>Asignar a equipo:</label>
-                  <select
-                    value={nuevaTarea.team || ''}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, team: e.target.value || null})}
-                    className="form-select"
-                  >
-                    <option value="">Tarea personal</option>
-                    {teams.map(team => (
-                      <option key={team.id} value={team.id}>{team.name}</option>
+                    <option value="">Asignar a mi mismo</option>
+                    {usuarios.filter(u => u.estado === 'approved').map(usuario => (
+                      <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo}</option>
                     ))}
                   </select>
                 </div>
               )}
+              
+              <div className="form-row">
+                <textarea 
+                  placeholder="Descripción de la tarea"
+                  value={nuevaTarea.description}
+                  onChange={(e) => setNuevaTarea({...nuevaTarea, description: e.target.value})}
+                  rows={3}
+                />
+              </div>
             </>
           )}
-
-          <button onClick={crearTarea} className="btn btn-create">
+          
+          <button type="submit" className="submit-btn">
             Crear Tarea
           </button>
-        </div>
+        </form>
       </div>
 
       {/* Lista de tareas */}
       <div className="tasks-list">
-        <h3>Mis Tareas ({tareas.length})</h3>
-        {tareas.length === 0 ? (
-          <p className="no-tasks">
-            {Object.values(filtros).some(f => f) ? 
-              'No hay tareas que coincidan con los filtros.' : 
-              'No hay tareas creadas aún.'
-            }
-          </p>
+        {tareasFiltradas.length === 0 ? (
+          <p className="no-tasks">No hay tareas que coincidan con los filtros.</p>
         ) : (
-          tareas.map((tarea) => (
-            <div 
-              key={tarea.id} 
-              className={`task-item ${tarea.status} ${esTareaVencida(tarea.due_date, tarea.status) ? 'overdue' : ''}`}
-            >
+          tareasFiltradas.map(tarea => (
+            <div key={tarea.id} className={`task-item ${tarea.status} priority-${tarea.priority}`}>
               {editandoTarea === tarea.id ? (
-                // Modo edición
-                <div className="task-edit-form">
-                  <div className="edit-form-group">
-                    <label>Nombre:</label>
-                    <input
-                      type="text"
-                      value={tareaEditada.task}
-                      onChange={(e) => setTareaEditada({...tareaEditada, task: e.target.value})}
-                      onKeyPress={(e) => handleKeyPress(e, 'actualizar', tarea.id)}
-                      className="task-input"
-                      autoFocus
-                      maxLength="200"
-                    />
-                  </div>
-
-                  <div className="edit-form-row">
-                    <div className="edit-form-group">
-                      <label>Prioridad:</label>
-                      <select
-                        value={tareaEditada.priority}
-                        onChange={(e) => setTareaEditada({...tareaEditada, priority: e.target.value})}
-                        className="form-select"
-                      >
-                        {prioridadOpciones.map(p => (
-                          <option key={p.value} value={p.value}>{p.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="edit-form-group">
-                      <label>Estado:</label>
-                      <select
-                        value={tareaEditada.status}
-                        onChange={(e) => setTareaEditada({...tareaEditada, status: e.target.value})}
-                        className="form-select"
-                      >
-                        {estadoOpciones.map(s => (
-                          <option key={s.value} value={s.value}>{s.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="edit-form-row">
-                    <div className="edit-form-group">
-                      <label>Fecha límite:</label>
-                      <input
-                        type="date"
-                        value={tareaEditada.due_date}
-                        onChange={(e) => setTareaEditada({...tareaEditada, due_date: e.target.value})}
-                        className="form-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="edit-form-group">
-                    <label>Descripción:</label>
-                    <textarea
-                      value={tareaEditada.description}
-                      onChange={(e) => setTareaEditada({...tareaEditada, description: e.target.value})}
-                      className="form-textarea"
-                      maxLength="500"
-                      rows="2"
-                    />
-                  </div>
-
-                  <div className="edit-form-row">
-                    <div className="edit-form-group">
-                      <label>Progreso (%):</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={tareaEditada.progress}
-                        onChange={(e) => setTareaEditada({...tareaEditada, progress: e.target.value})}
-                        className="form-input"
-                      />
-                    </div>
-
-                    <div className="edit-form-group">
-                      <label>Horas estimadas:</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={tareaEditada.estimated_hours}
-                        onChange={(e) => setTareaEditada({...tareaEditada, estimated_hours: e.target.value})}
-                        className="form-input"
-                      />
-                    </div>
-
-                    <div className="edit-form-group">
-                      <label>Horas reales:</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={tareaEditada.actual_hours}
-                        onChange={(e) => setTareaEditada({...tareaEditada, actual_hours: e.target.value})}
-                        className="form-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="edit-form-group">
-                    <label>Etiquetas:</label>
-                    <input
-                      type="text"
-                      value={tareaEditada.tags}
-                      onChange={(e) => setTareaEditada({...tareaEditada, tags: e.target.value})}
-                      className="form-input"
-                    />
-                  </div>
-
+                // Formulario de edición
+                <div className="edit-form">
+                  <input 
+                    type="text"
+                    value={tareaEditada.task}
+                    onChange={(e) => setTareaEditada({...tareaEditada, task: e.target.value})}
+                  />
+                  <select 
+                    value={tareaEditada.priority}
+                    onChange={(e) => setTareaEditada({...tareaEditada, priority: e.target.value})}
+                  >
+                    <option value="high">Alta</option>
+                    <option value="medium">Media</option>
+                    <option value="low">Baja</option>
+                  </select>
+                  <select 
+                    value={tareaEditada.status}
+                    onChange={(e) => setTareaEditada({...tareaEditada, status: e.target.value})}
+                  >
+                    <option value="pending">Pendiente</option>
+                    <option value="in_progress">En Progreso</option>
+                    <option value="completed">Completada</option>
+                    <option value="cancelled">Cancelada</option>
+                  </select>
                   <div className="edit-actions">
-                    <button 
-                      onClick={() => actualizarTarea(tarea.id)}
-                      className="btn btn-create"
-                    >
-                      Guardar
-                    </button>
-                    <button 
-                      onClick={cancelarEdicion}
-                      className="btn btn-cancel"
-                    >
-                      Cancelar
-                    </button>
+                    <button onClick={() => guardarEdicion(tarea.id)}>Guardar</button>
+                    <button onClick={cancelarEdicion}>Cancelar</button>
                   </div>
                 </div>
               ) : (
-                // Modo visualización
-                <div className="task-view">
+                // Vista normal de tarea
+                <>
                   <div className="task-header">
-                    <div className="task-title-section">
-                      <h4 className="task-title">{tarea.task}</h4>
-                      <div className="task-badges">
-                        <span 
-                          className="priority-badge"
-                          style={{ backgroundColor: obtenerColorPrioridad(tarea.priority) }}
-                        >
-                          {prioridadOpciones.find(p => p.value === tarea.priority)?.label || tarea.priority}
-                        </span>
-                        <span 
-                          className="status-badge"
-                          style={{ backgroundColor: obtenerColorEstado(tarea.status) }}
-                        >
-                          {estadoOpciones.find(s => s.value === tarea.status)?.label || tarea.status}
-                        </span>
-                        {tarea.category === 'subtarea' && (
-                          <span className="category-badge">Subtarea</span>
-                        )}
-                        {tarea.team && (
-                          <span className="team-badge">Equipo</span>
-                        )}
+                    <h4 className="task-title">{tarea.task}</h4>
+                    <div className="task-badges">
+                      <span className={`priority-badge ${tarea.priority}`}>
+                        {tarea.priority === 'high' && '🔴'}
+                        {tarea.priority === 'medium' && '🟡'}
+                        {tarea.priority === 'low' && '🟢'}
+                        {tarea.priority}
+                      </span>
+                      <span className={`status-badge ${tarea.status}`}>
+                        {tarea.status === 'completed' && '✅'}
+                        {tarea.status === 'in_progress' && '🔄'}
+                        {tarea.status === 'pending' && '⏳'}
+                        {tarea.status === 'cancelled' && '❌'}
+                        {tarea.status}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="task-info">
+                    {tarea.due_date && (
+                      <span className={`due-date ${esTareaVencida(tarea.due_date, tarea.status) ? 'overdue' : ''}`}>
+                        📅 Vence: {formatearFecha(tarea.due_date)}
+                      </span>
+                    )}
+                    
+                    <div className="task-progress">
+                      <div className="progress-bar">
+                        <div 
+                          className="progress-fill" 
+                          style={{ width: `${tarea.progress}%` }}
+                        ></div>
                       </div>
+                      <span className="progress-text">{tarea.progress}%</span>
                     </div>
                     
-                    <div className="task-dates">
-                      {tarea.due_date && (
-                        <div className={`due-date ${esTareaVencida(tarea.due_date, tarea.status) ? 'overdue' : ''}`}>
-                          <strong>Vence:</strong> {formatearFecha(tarea.due_date)}
-                          {esTareaVencida(tarea.due_date, tarea.status) && (
-                            <span className="overdue-label">¡VENCIDA!</span>
-                          )}
-                        </div>
-                      )}
-                      {tarea.start_date && (
-                        <div className="start-date">
-                          <strong>Inicio:</strong> {formatearFecha(tarea.start_date)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Barra de progreso */}
-                  <div className="task-progress">
-                    <div className="progress-info">
-                      <span>Progreso: {tarea.progress || 0}%</span>
-                      {tarea.category === 'principal' && obtenerSubtareas(tarea.id).length > 0 && (
-                        <span className="subtasks-progress">
-                          (Subtareas: {calcularProgresoSubtareas(tarea.id)}%)
-                        </span>
-                      )}
-                    </div>
-                    <div className="progress-bar">
-                      <div 
-                        className="progress-fill" 
-                        style={{ width: `${tarea.progress || 0}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  {/* Etiquetas */}
-                  {tarea.tags && (
-                    <div className="task-tags">
-                      {tarea.tags.split(',').map((tag, index) => (
-                        <span key={index} className="tag">{tag.trim()}</span>
-                      ))}
-                    </div>
-                  )}
-
-                  {tarea.description && (
-                    <div className="task-description">
-                      <p>{tarea.description}</p>
-                    </div>
-                  )}
-
-                  {/* Información de tiempo */}
-                  {(tarea.estimated_hours || tarea.actual_hours) && (
-                    <div className="task-time-info">
-                      {tarea.estimated_hours && (
-                        <span className="time-estimate">
-                          Estimado: {tarea.estimated_hours}h
-                        </span>
-                      )}
-                      {tarea.actual_hours && (
-                        <span className="time-actual">
-                          Real: {tarea.actual_hours}h
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Subtareas */}
-                  {tarea.category === 'principal' && obtenerSubtareas(tarea.id).length > 0 && (
-                    <div className="subtasks-section">
-                      <h5>Subtareas ({obtenerSubtareas(tarea.id).length})</h5>
-                      <div className="subtasks-list">
-                        {obtenerSubtareas(tarea.id).map(subtarea => (
-                          <div key={subtarea.id} className="subtask-item">
-                            <span className={`subtask-status ${subtarea.status}`}>
-                              {subtarea.status === 'completed' ? '✓' : '○'}
-                            </span>
-                            <span className="subtask-name">{subtarea.task}</span>
-                            <span className="subtask-progress">{subtarea.progress || 0}%</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="task-meta">
-                    <small>
-                      Creada: {formatearFecha(tarea.created_at)} | 
-                      Actualizada: {formatearFecha(tarea.updated_at)}
-                    </small>
-                  </div>
-
-                  <div className="task-actions">
-                    {tarea.status !== 'completed' && (
-                      <button 
-                        onClick={() => marcarComoCompletada(tarea.id)}
-                        className="btn btn-complete"
-                        title="Marcar como completada"
-                      >
-                        ✓ Completar
-                      </button>
+                    {tarea.description && (
+                      <p className="task-description">{tarea.description}</p>
                     )}
-                    <button 
-                      onClick={() => iniciarEdicion(tarea)}
-                      className="btn btn-edit"
-                    >
-                      Editar
-                    </button>
-                    <button 
-                      onClick={() => eliminarTarea(tarea.id)}
-                      className="btn btn-delete"
-                    >
-                      Eliminar
-                    </button>
-                    <button 
-                      onClick={() => setVistaDetalle(vistaDetalle === tarea.id ? null : tarea.id)}
-                      className="btn btn-details"
-                    >
-                      {vistaDetalle === tarea.id ? 'Ocultar' : 'Detalles'}
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setTareaSeleccionada(tarea.id);
-                        obtenerComentarios(tarea.id);
-                      }}
-                      className="btn btn-comments"
-                    >
-                      💬 Comentarios
-                    </button>
+                    
+                    {/* Información adicional para admin */}
+                    {userData.rol === 'admin' && filtros.show_all && (
+                      <div className="task-admin-info">
+                        <span className="assigned-user">
+                          👤 Asignado a: {obtenerNombreUsuario(tarea.user_id)}
+                        </span>
+                      </div>
+                    )}
                   </div>
-
-                  {/* Detalles expandidos */}
-                  {vistaDetalle === tarea.id && (
-                    <div className="task-details-expanded">
-                      <h5>Información Detallada</h5>
-                      <div className="details-grid">
-                        <div><strong>ID:</strong> {tarea.id}</div>
-                        <div><strong>Orden:</strong> {tarea.order || 0}</div>
-                        <div><strong>Progreso:</strong> {tarea.progress || 0}%</div>
-                        <div><strong>Categoría:</strong> {tarea.category}</div>
-                        <div><strong>Usuario:</strong> {tarea.user}</div>
-                        <div><strong>Equipo:</strong> {tarea.team || 'Personal'}</div>
-                        {tarea.parent_task && (
-                          <div><strong>Tarea padre:</strong> {tarea.parent_task}</div>
-                        )}
-                        <div><strong>Horas estimadas:</strong> {tarea.estimated_hours || 'N/A'}</div>
-                        <div><strong>Horas reales:</strong> {tarea.actual_hours || 'N/A'}</div>
-                        <div><strong>Días hasta vencimiento:</strong> {
-                          tarea.due_date ? 
-                            Math.max(0, Math.ceil((new Date(tarea.due_date) - new Date()) / (1000 * 60 * 60 * 24))) + ' días' : 
-                            'N/A'
-                        }</div>
-                        <div><strong>Creada:</strong> {new Date(tarea.created_at).toLocaleString('es-ES')}</div>
-                        <div><strong>Actualizada:</strong> {new Date(tarea.updated_at).toLocaleString('es-ES')}</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Sección de comentarios */}
-                  {tareaSeleccionada === tarea.id && (
-                    <div className="comments-section">
-                      <h5>Comentarios</h5>
-                      <div className="comments-list">
-                        {comentarios[tarea.id] && comentarios[tarea.id].length > 0 ? (
-                          comentarios[tarea.id].map(comentario => (
-                            <div key={comentario.id} className="comment-item">
-                              <div className="comment-header">
-                                <strong>{comentario.user_name}</strong>
-                                <small>{formatearFecha(comentario.created_at)}</small>
-                              </div>
-                              <p>{comentario.comment}</p>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="no-comments">No hay comentarios aún</p>
-                        )}
-                      </div>
-                      
-                      <div className="add-comment">
-                        <textarea
-                          value={nuevoComentario}
-                          onChange={(e) => setNuevoComentario(e.target.value)}
-                          placeholder="Escribe un comentario..."
-                          className="comment-input"
-                          rows="3"
-                        />
+                  
+                  <div className="task-actions">
+                    <button 
+                      className="action-btn view-btn"
+                      onClick={() => verDetalleTarea(tarea.id)}
+                    >
+                      👁️ Ver
+                    </button>
+                    
+                    {/* Botones para tareas propias o admin */}
+                    {(tarea.user_id === userId || userData.rol === 'admin') && (
+                      <>
                         <button 
-                          onClick={() => agregarComentario(tarea.id)}
-                          className="btn btn-comment"
+                          className="action-btn edit-btn"
+                          onClick={() => iniciarEdicion(tarea)}
                         >
-                          Agregar Comentario
+                          ✏️ Editar
                         </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                        <button 
+                          className="action-btn delete-btn"
+                          onClick={() => userData.rol === 'admin' ? eliminarTareaAdmin(tarea.id) : eliminarTarea(tarea.id)}
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </>
+                    )}
+                    
+                    {/* Botón para reasignar (solo admin) */}
+                    {userData.rol === 'admin' && (
+                      <select 
+                        className="reassign-select"
+                        onChange={(e) => {
+                          if (e.target.value && window.confirm('¿Reasignar esta tarea?')) {
+                            reasignarTarea(tarea.id, e.target.value);
+                          }
+                          e.target.value = '';
+                        }}
+                      >
+                        <option value="">Reasignar a...</option>
+                        {usuarios.filter(u => u.estado === 'approved' && u.id !== tarea.user_id).map(usuario => (
+                          <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           ))
         )}
       </div>
 
-      {/* Estadísticas resumidas */}
-      <div className="task-stats">
-        <h3>Estadísticas</h3>
-        <div className="stats-grid">
-          <div className="stat-card">
-            <span className="stat-number">{tareas.length}</span>
-            <span className="stat-label">Total</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number">{tareas.filter(t => t.status === 'pending').length}</span>
-            <span className="stat-label">Pendientes</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number">{tareas.filter(t => t.status === 'in_progress').length}</span>
-            <span className="stat-label">En Progreso</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number">{tareas.filter(t => t.status === 'completed').length}</span>
-            <span className="stat-label">Completadas</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number">{tareas.filter(t => esTareaVencida(t.due_date, t.status)).length}</span>
-            <span className="stat-label">Vencidas</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number">{tareas.filter(t => t.priority === 'urgent').length}</span>
-            <span className="stat-label">Urgentes</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number">{tareas.filter(t => t.category === 'subtarea').length}</span>
-            <span className="stat-label">Subtareas</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number">
-              {tareas.length > 0 ? Math.round(tareas.reduce((sum, t) => sum + (t.progress || 0), 0) / tareas.length) : 0}%
-            </span>
-            <span className="stat-label">Progreso Promedio</span>
-          </div>
-        </div>
-
-        {/* Estadísticas de tiempo */}
-        <div className="time-stats">
-          <h4>Estadísticas de Tiempo</h4>
-          <div className="time-stats-grid">
-            <div className="time-stat">
-              <span className="time-number">
-                {tareas.reduce((sum, t) => sum + (parseFloat(t.estimated_hours) || 0), 0).toFixed(1)}h
-              </span>
-              <span className="time-label">Horas Estimadas</span>
+      {/* Vista detalle de tarea */}
+      {vistaDetalle && (
+        <div className="task-detail-modal">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>{vistaDetalle.task}</h3>
+              <button className="close-btn" onClick={cerrarVistaDetalle}>×</button>
             </div>
-            <div className="time-stat">
-              <span className="time-number">
-                {tareas.reduce((sum, t) => sum + (parseFloat(t.actual_hours) || 0), 0).toFixed(1)}h
-              </span>
-              <span className="time-label">Horas Reales</span>
-            </div>
-            <div className="time-stat">
-              <span className="time-number">
-                {tareas.filter(t => t.due_date && new Date(t.due_date) > new Date()).length}
-              </span>
-              <span className="time-label">Próximas a Vencer</span>
+            <div className="modal-body">
+              <div className="task-details">
+                <p><strong>Prioridad:</strong> {vistaDetalle.priority}</p>
+                <p><strong>Estado:</strong> {vistaDetalle.status}</p>
+                <p><strong>Categoría:</strong> {vistaDetalle.category}</p>
+                <p><strong>Progreso:</strong> {vistaDetalle.progress}%</p>
+                {vistaDetalle.due_date && (
+                  <p><strong>Fecha de vencimiento:</strong> {formatearFecha(vistaDetalle.due_date)}</p>
+                )}
+                {vistaDetalle.description && (
+                  <p><strong>Descripción:</strong> {vistaDetalle.description}</p>
+                )}
+              </div>
+              
+              {/* Comentarios */}
+              <div className="task-comments">
+                <h4>Comentarios</h4>
+                {comentarios[tareaSeleccionada] && comentarios[tareaSeleccionada].map(comentario => (
+                  <div key={comentario.id} className="comment">
+                    <p>{comentario.comment}</p>
+                    <span className="comment-date">{new Date(comentario.created_at).toLocaleString()}</span>
+                  </div>
+                ))}
+                
+                <div className="add-comment">
+                  <textarea 
+                    placeholder="Agregar comentario..."
+                    value={nuevoComentario}
+                    onChange={(e) => setNuevoComentario(e.target.value)}
+                    rows={2}
+                  />
+                  <button 
+                    onClick={() => agregarComentario(tareaSeleccionada)}
+                    disabled={!nuevoComentario.trim()}
+                  >
+                    Agregar Comentario
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

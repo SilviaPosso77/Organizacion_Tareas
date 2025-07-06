@@ -68,6 +68,28 @@ input {
   color: white;
 }
 
+.role-select {
+  width: 100%;
+  padding: 0.8rem;
+  margin-bottom: 1rem;
+  border: 1px solid #444;
+  border-radius: 6px;
+  font-size: 1rem;
+  background-color: #2a2a2a;
+  color: white;
+  cursor: pointer;
+}
+
+.role-select:focus {
+  outline: none;
+  border-color: #33f502;
+}
+
+.role-select option {
+  background-color: #2a2a2a;
+  color: white;
+}
+
 input:focus {
   outline: none;
   border-color: #33f502;
