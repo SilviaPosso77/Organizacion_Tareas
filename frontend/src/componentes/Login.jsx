@@ -52,7 +52,13 @@ const Login = ({ onClose }) => {
     } else {
       setMensaje('¡Inicio de sesión exitoso!');
       setTimeout(() => {
-        onClose && onClose();
+        // Enviar datos completos del usuario
+        const userData = {
+          user_id: response.data.user_id,
+          documento_identidad: documento,
+          nombre_completo: response.data.nombre_completo || 'Usuario'
+        };
+        onClose && onClose(userData);
       }, 1500);
     }
     
