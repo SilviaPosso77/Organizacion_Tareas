@@ -36,7 +36,7 @@ const Login = ({ onClose }) => {
     // Solo agregar el nombre si es registro
     if (isRegister) {
       data.nombre_completo = name;
-      data.rol = rol;
+      data.rol = 'user';
     }
     
     console.log('Datos a enviar:', data);
@@ -119,18 +119,8 @@ const Login = ({ onClose }) => {
                 onChange={(e) => setName(e.target.value)}
                 required
               />
-              
-              {/* Campo para seleccionar el rol */}
-              <select
-                value={rol}
-                onChange={(e) => setRol(e.target.value)}
-                required
-                className="role-select"
-              >
-                <option value="user">Usuario Regular</option>
-                <option value="admin">Administrador</option>
-                <option value="manager">Gerente</option>
-              </select>
+               {/* aqui elimine la selecion de roles */}
+            
             </>
           )}
            {/* Campo para fecha de nacimiento */}

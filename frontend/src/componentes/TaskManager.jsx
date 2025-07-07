@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import './TaskManager.css';
 
+
+// Este es el estado de las tareas categorizadas
 const TaskManager = ({ userId, userData, onLogout }) => {
   // Estados principales
   const [tareas, setTareas] = useState([]);
@@ -21,6 +23,20 @@ const TaskManager = ({ userId, userData, onLogout }) => {
     team: null,
     assigned_to: null
   });
+
+const [showRoleSelector, setShowRoleSelector] = useState(false);
+const [availableRoles] = useState([
+  'Nuevo usuario',
+  'Usuario registrado', 
+  'Usuario autenticado',
+  'Desarrolladora',
+  'Administrador',
+  'Desarrolladora (Flask)',
+  'Desarrolladora (Django)'
+]);
+
+
+
   const [editandoTarea, setEditandoTarea] = useState(null);
   const [tareaEditada, setTareaEditada] = useState({});
   const [filtros, setFiltros] = useState({
@@ -75,6 +91,25 @@ const TaskManager = ({ userId, userData, onLogout }) => {
     const usuario = usuarios.find(u => u.id === userId);
     return usuario ? usuario.nombre_completo : 'Usuario desconocido';
   };
+//Funcion de los roles
+const handleRoleChange = async (selectedRole) => {
+  try {
+    // Llamar API para actualizar rol
+    await axios.put(`http://127.0.0.1:8000/api/users/${userData.user_id}/role/`, {
+      rol: selectedRole
+    });
+    
+    // Mostrar mensaje de éxito y cerrar selector
+    alert('Rol actualizado exitosamente. Por favor, inicia sesión nuevamente para ver los cambios.');
+    setShowRoleSelector(false);
+    
+    // Opcional: cerrar sesión automáticamente para que el usuario vuelva a iniciar sesión
+    // onLogout();
+  } catch (error) {
+    console.error('Error updating role:', error);
+    alert('Error al actualizar el rol. Por favor, inténtalo de nuevo.');
+  }
+};
 
   // Funciones de API
   const construirURLConFiltros = () => {
@@ -296,9 +331,9 @@ const TaskManager = ({ userId, userData, onLogout }) => {
       }
     }
   };
-
+{/* Eliminar las tareas- Administrador*/}
   const eliminarTareaAdmin = async (id) => {
-    if (userData?.rol !== 'admin') {
+    if (userData?.rol !== 'admin', 'user') {
       alert('No tienes permisos para eliminar esta tarea');
       return;
     }
@@ -314,6 +349,28 @@ const TaskManager = ({ userId, userData, onLogout }) => {
       }
     }
   };
+
+{/* Eliminar las tareas- Usuarios*/}
+  const eliminarTareaUser = async (id) => {
+    if (userData?.rol !== 'user') {
+      alert('No tienes permisos para eliminar esta tarea');
+      return;
+    }
+
+    if (window.confirm('¿Estás seguro de que quieres eliminar esta tarea?')) {
+      try {
+        await axios.delete(`${API_URL}${id}/`);
+        obtenerTareas();
+        alert('Tarea eliminada exitosamente');
+      } catch (error) {
+        console.error('Error al eliminar tarea:', error);
+        alert('Error al eliminar la tarea');
+      }
+    }
+  };
+
+
+
 
   const reasignarTarea = async (tareaId, nuevoUsuarioId) => {
     if (userData?.rol !== 'admin') {
@@ -429,6 +486,23 @@ const TaskManager = ({ userId, userData, onLogout }) => {
   return (
     <div className="task-manager">
       <div className="header">
+
+        {/* Selector de rol para nuevos usuarios */}
+  {showRoleSelector && (
+  <div className="role-selector-modal">
+    <div className="role-selector-content">
+      <h3>Selecciona tu rol</h3>
+      <select onChange={(e) => handleRoleChange(e.target.value)}>
+        <option value="">Seleccionar rol...</option>
+        {availableRoles.map(role => (
+          <option key={role} value={role}>{role}</option>
+        ))}
+      </select>
+    </div>
+  </div>
+)}
+
+
         <div className="user-info">
           <h2>Bienvenido, {userData.nombre_completo}</h2>
           <p>Rol: <span className={`role-badge ${userData.rol}`}>{userData.rol}</span></p>
@@ -478,9 +552,10 @@ const TaskManager = ({ userId, userData, onLogout }) => {
               <h4>Tareas Vencidas</h4>
               <p>{estadisticasGenerales.tareasVencidas || 0}</p>
             </div>
+            
             <div className="stat-card">
               <h4>Progreso Promedio</h4>
-              <p>{estadisticasGenerales.promedioProgreso || 0}%</p>
+              <p>{estadisticasGenerales.promedioProgreso || 10}%</p>
             </div>
           </div>
 
@@ -752,7 +827,7 @@ const TaskManager = ({ userId, userData, onLogout }) => {
                   </div>
                 </div>
               ) : (
-                // Vista normal de tarea
+                // Vista normal de tarea para usuarios
                 <>
                   <div className="task-header">
                     <h4 className="task-title">{tarea.task}</h4>
@@ -770,9 +845,36 @@ const TaskManager = ({ userId, userData, onLogout }) => {
                         {tarea.status === 'cancelled' && '❌'}
                         {tarea.status}
                       </span>
+
+                       <button 
+                      className="action-btn view-btn"
+                      onClick={() => verDetalleTarea(tarea.id)}
+                    >
+                      Ver
+                    </button>
+                    
+                    {/* Botones para tareas usuarios */}
+                    {(tarea.user_id === userId || userData.rol === 'user') && (
+                      <>
+                        <button 
+                          className="action-btn edit-btn"
+                          onClick={() => iniciarEdicion(tarea)}
+                        >
+                          Editar
+                        </button>
+                        <button 
+                          className="action-btn delete-btn"
+                          onClick={() => userData.rol === 'user' ? eliminarTareaUser(tarea.id) : eliminarTarea(tarea.id)}
+                        >
+                          Eliminar
+                        </button>
+                      </>
+                    )}
+
                     </div>
                   </div>
-                  
+
+
                   <div className="task-info">
                     {tarea.due_date && (
                       <span className={`due-date ${esTareaVencida(tarea.due_date, tarea.status) ? 'overdue' : ''}`}>
@@ -794,7 +896,7 @@ const TaskManager = ({ userId, userData, onLogout }) => {
                       <p className="task-description">{tarea.description}</p>
                     )}
                     
-                    {/* Información adicional para admin */}
+                    {/* Información adicional para admin -asignar tareas a usuarios*/}
                     {userData.rol === 'admin' && filtros.show_all && (
                       <div className="task-admin-info">
                         <span className="assigned-user">
