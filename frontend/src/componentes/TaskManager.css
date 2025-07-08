@@ -1,70 +1,188 @@
 /* TaskManager.css - Estilos actualizados para la nueva funcionalidad */
 
+/* Estilos globales del body para tema oscuro y claro */
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Arial', sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Tema oscuro para body (por defecto) */
+body,
+body.dark-theme {
+  background-color: #121212;
+  color: #ffffff;
+}
+
+/* Tema claro para body */
+body.light-theme {
+  background-color: #f8f9fa;
+  color: #333333;
+}
+
+.body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+h3 {
+  margin: 2;
+  padding: 1;
+  font-size: 1.5rem;
+}
+
+
 .task-manager {
   background-color: #070000;
-  color: rgb(245, 239, 239);
+  color: rgb(248, 241, 241);
   min-height: 100vh;
-  padding: 2rem;
+  height: 100vh;
+  width: 100vw;
+  padding: 0.5rem;
   font-family: 'Arial', sans-serif;
-  max-width: 50000px;
-  margin: 0 auto;
-  width: 100%;
+  margin: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Contenedor principal para distribución del espacio */
+.task-manager .content-wrapper {
+  display: flex;
+  flex: 1;
+  gap: 1rem;
+  height: calc(100vh - 140px); /* Ajustar según altura del header */
+}
+
+/* Columna izquierda - Formularios y filtros */
+.task-manager .left-column {
+  flex: 0 0 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+/* Columna derecha - Lista de tareas */
+.task-manager .right-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+/* Para pantallas pequeñas, apilar verticalmente */
+@media (max-width: 1024px) {
+  .task-manager .content-wrapper {
+    flex-direction: column;
+    height: auto;
+  }
   
+  .task-manager .left-column {
+    flex: none;
+  }
+  
+  .task-manager .right-column {
+    flex: none;
+  }
+}
+
+/* Tema claro para TaskManager -OK*/
+.light-theme .task-manager {
+  background-color: #cecccc;
+  color: #333333;
+}
+
+.light-theme .header {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: #ffffff;
+  padding: 50px;
+  
+  
+  
+}
+/* Tema claro tareas -OK*/
+.light-theme .task-item {
+  background-color: #f1e5e5;
+  border: 1px solid #f1e5e5;
+  color: #f0eff1;
+}
+/* Tema claro para TaskManager DE NUEVA TAREA -OK*/
+.light-theme .new-task-form {
+  background-color: #cecccc;
+  border: 1px solid #cecccc;
+}
+/* Tema claro para TaskManager buscar tarea -OK*/
+.light-theme .filters-container {
+  background-color: #cecccc;
+  border: 1px solid #cecccc;
+}
+
+.light-theme .admin-panel {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  color: #333333;
 }
 
 /* Header */
 .header {
-  
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  background: linear-gradient(135deg, #02ff2c 0%, #989c97 100%);/* Bienvenidos body */
-  color: rgb(12, 0, 0);/* letra Bienvenidos */
-  border-radius: 8px;
-  margin-bottom: 20px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #02ff2c 0%, #989c97 100%);
+  color: rgb(12, 0, 0);
+  border-radius: 6px;
+  margin-bottom: 8px;
   width: 100%;
-  
+  box-sizing: border-box;
 }
 
 .header-actions {
   display: flex;
-  gap: 10px;
+  gap: 6px;
   align-items: center;
 }
 
 .user-info {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 2px;
 }
 
 .user-info h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: 16px;
 }
 
 .user-info p {
   margin: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  font-size: 12px;
 }
 
 .user-info h3 {
-  margin: 0 0 0.5rem 0;
+  margin: 0 0 0.2rem 0;
   color: #0bf516;
-  font-size: 1.5rem;
+  font-size: 1rem;
 }
 
 .user-role {
   background: #0bf516;
   color: #1a1a1a;
-  padding: 0.2rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.8rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 8px;
+  font-size: 0.7rem;
   font-weight: bold;
-  margin-right: 1rem;
+  margin-right: 0.5rem;
 }
 
 .user-info small {
@@ -82,11 +200,12 @@
   background-color: rgba(255, 255, 255, 0.2);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 8px 16px;
+  padding: 6px 12px;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
+  font-size: 12px;
 }
 
 .notifications-btn:hover {
@@ -160,24 +279,25 @@
   margin: 0;
   padding: 1rem;
 }
-
+/*Boton de cerrar sesion cuand cuando estoy esperando que me den acceso*/
 .logout-btn {
-  background-color: #080001;/* boton de cerrar sesion  */
+  background-color: #0e0d0d;
   color: rgb(245, 243, 243);
   border: none;
-  padding: 8px 16px;
+  padding: 12px 12px;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.3s ease;
+  font-size: 12px;
 }
-
+/*Boton de cerrar sesion cuando cuando estoy esperando que me den acceso*/
 .logout-btn:hover {
-  background-color: #3dff02; /* boton de cerrar sesion  */
+  background-color: #35ff02; /* boton de cerrar sesion  */
 }
 
-/* Filtros */
+/* Botónes de Filtros- mirarlos bien ya que acá tengo un error -*/
 .filters-section {
-  background: #2a2a2a;
+  background: #cac5c5;
   padding: 1.5rem;
   border-radius: 12px;
   margin-bottom: 2rem;
@@ -212,7 +332,7 @@
 
 .filter-input,
 .filter-select {
-  background: #1a1a1a;
+  background: #d6cece;
   border: 2px solid #3a3a3a;
   color: white;
   padding: 0.7rem;
@@ -232,13 +352,15 @@
   align-items: end;
 }
 
-/* Formulario de tareas */
+/* Formulario de tareas -El de Nueva Tarea*/
 .task-form {
-  background: linear-gradient(135deg, #2a2a2a, #3a3a3a);
+  background: linear-gradient(135deg, #5a5656, #707070);
   padding: 2rem;
-  border-radius: 12px;
+  border-radius: 10px;
   margin-bottom: 2rem;
-  border: 1px solid #3a3a3a;
+  border: 0px solid #df2b2b;
+  width: 80%;
+  
 }
 
 .form-header {
@@ -256,12 +378,13 @@
 .mode-toggle {
   display: flex;
   border: 2px solid #0bf516;
-  border-radius: 6px;
+  border-radius: 15px;
   overflow: hidden;
+  width: 50px;
 }
 
 .mode-toggle button {
-  background: #1a1a1a;
+  background: #ececec;
   color: white;
   border: none;
   padding: 0.5rem 1rem;
@@ -276,7 +399,7 @@
 }
 
 .mode-toggle button:hover:not(.active) {
-  background: #3a3a3a;
+  background: #ec0e0e;
 }
 
 .form-content {
@@ -293,9 +416,10 @@
 .form-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
+  gap: rem;
+  width: 90%;
 }
-
+/*titulo de tareas- BUSCAR OK*/
 .form-group label {
   color: #ccc;
   font-size: 0.9rem;
@@ -372,7 +496,7 @@
 .btn-delete:hover {
   background: linear-gradient(135deg, #d32f2f, #b71c1c);
 }
-
+/* Botones de acción 
 .btn-complete {
   background: linear-gradient(135deg, #4CAF50, #388E3C);
   color: white;
@@ -409,7 +533,7 @@
 
 .btn-details:hover {
   background: linear-gradient(135deg, #F57C00, #E65100);
-}
+}*/
 
 /* Lista de tareas */
 .tasks-list {
@@ -491,7 +615,7 @@
   gap: 0.5rem;
   flex-wrap: wrap;
 }
-
+/*botones de prioridad, estado y categoria- OK */
 .priority-badge,
 .status-badge,
 .category-badge {
@@ -499,7 +623,7 @@
   border-radius: 12px;
   font-size: 0.8rem;
   font-weight: bold;
-  color: rgb(158, 6, 6);
+  color: rgb(250, 247, 247);
 }
 
 .category-badge {
@@ -562,7 +686,7 @@
   justify-content: flex-end;
 }
 
-/* Formulario de edición */
+/* Formulario de edición 
 .task-edit-form {
   display: flex;
   flex-direction: column;
@@ -591,7 +715,7 @@
   display: flex;
   gap: 0.5rem;
   justify-content: flex-end;
-}
+}*/
 
 /* Detalles expandidos */
 .task-details-expanded {
@@ -600,6 +724,7 @@
   border-radius: 6px;
   border: 1px solid #3a3a3a;
   margin-top: 1rem;
+  
 }
 
 .task-details-expanded h5 {
@@ -620,7 +745,7 @@
 
 /* Estadísticas */
 .task-stats {
-  background: linear-gradient(135deg, #2a2a2a, #3a3a3a);
+  background: linear-gradient(135deg, #c03c3c, #3a3a3a);
   padding: 1.5rem;
   border-radius: 12px;
   border: 1px solid #3a3a3a;
@@ -639,36 +764,36 @@
   gap: 1rem;
   margin-top: 1rem;
 }
-
+/* Tarjetas de estadísticas- las problematicas */
 .stat-card {
-  background-color: white;
-  padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  background-color: rgb(29, 28, 28);
+  padding: 6px;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
   text-align: center;
-  border-left: 4px solid #007bff;
+  border-left: 3px solid #bac5b8;
 }
 
 .stat-card:hover {
   border-color: #0bf516;
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .stat-number {
   display: block;
-  font-size: 2rem;
+  font-size: 1.2rem;
   font-weight: bold;
   color: #0bf516;
 }
 
 .stat-label {
   display: block;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   color: #ccc;
-  margin-top: 0.5rem;
+  margin-top: 0.3rem;
 }
 
-/* Progress Bar */
+/* Progress Bar 
 .task-progress {
   margin: 1rem 0;
 }
@@ -699,9 +824,9 @@
   height: 100%;
   background: linear-gradient(90deg, #0bf516, #09c414);
   transition: width 0.3s ease;
-}
+}*/
 
-/* Tags */
+/* Tags 
 .task-tags {
   display: flex;
   flex-wrap: wrap;
@@ -716,9 +841,9 @@
   border-radius: 12px;
   font-size: 0.7rem;
   font-weight: bold;
-}
+}*/
 
-/* Time Information */
+/* Time Information 
 .task-time-info {
   display: flex;
   gap: 1rem;
@@ -734,7 +859,7 @@
 .time-actual {
   color: #28a745;
   font-weight: bold;
-}
+}*/
 
 /* Enhanced Task Badges */
 .task-badges {
@@ -820,7 +945,7 @@
   font-size: 0.8rem;
 }
 
-/* Comments Section */
+/* Comments Section 
 .comments-section {
   margin: 1rem 0;
   padding: 1rem;
@@ -883,8 +1008,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
 
+*/
 .comment-input {
   background: #1a1a1a;
   border: 2px solid #3a3a3a;
@@ -896,7 +1021,7 @@
   resize: vertical;
   min-height: 80px;
 }
-
+/*para el input de comentarios
 .comment-input:focus {
   border-color: #007bff;
   outline: none;
@@ -917,7 +1042,7 @@
 .btn-comment:hover {
   background: linear-gradient(135deg, #0056b3, #004085);
   transform: translateY(-2px);
-}
+}*/
 
 .btn-comments {
   background: linear-gradient(135deg, #007bff, #0056b3);
@@ -936,7 +1061,7 @@
   transform: translateY(-2px);
 }
 
-/* Enhanced Statistics */
+/* Enhanced Statistics 
 .time-stats {
   margin-top: 1.5rem;
   padding: 1rem;
@@ -975,243 +1100,92 @@
   font-size: 0.8rem;
   color: #ccc;
   margin-top: 0.25rem;
-}
+}*/
 
-/* Estilos específicos para administrador */
-.role-badge {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
-  text-transform: uppercase;
-}
-
-.role-badge.admin {/* Rol */
-  background-color: #010f01;
-  color: white;
-}
-
-.role-badge.user {
-  background-color: #6c757d;
-  color: white;
-}
-
-.admin-panel-btn { /* boton ocultar panel de admin */
-  background-color: #0c010a;
-  color: rgb(243, 239, 239);
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-left: 10px;
-  font-size: 14px;
-}
-
-.admin-panel-btn:hover {
-  background-color: #0af10a;
-}
-
-.admin-panel { /* Panel de Administrador  */
-  background-color: #0a0a0a;
-  border: 2px solid #3cff00;
-  border-radius: 8px;
-  padding: 20px;
-  margin: 20px 0;
-}
-
-.admin-panel h3 {
-  color: #eff4f7;
-  margin-bottom: 20px;
-  border-bottom: 2px solid #060707;
-  padding-bottom: 10px;
-}
-
-.admin-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 15px;
-  margin-bottom: 30px;
-}
-
-.admin-users { /* Panel de Administrador  */
-  background-color: rgb(10, 0, 0);
-  padding: 2px;
-  border-radius: 8px;
-  box-shadow: 0 px 10px rgba(0,0,0,0.1);
+/* Panel de Admin en pantalla completa */
+.admin-panel-fullscreen {
   width: 100%;
-  max-width: 800px;
+  height: 100%;
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  overflow-y: auto;
+  flex: 1;
+}
+/* Panel de Admin en pantalla completa-Panel de administrador */
+
+.admin-panel-fullscreen h3 {
+  color: #e0d5da;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.4rem;
+  border-bottom: 2px solid #333;
+  padding-bottom: 0.5rem;
+  text-align: center;
 }
 
-.admin-users h4 {
-  margin-bottom: 15px;
-  color: #fdfeff;
-  width: 80%;
-  height: 5%;
+/* Tema claro para panel de admin fullscreen */
+.light-theme .admin-panel-fullscreen {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  color: #333333;
 }
 
-.users-list {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+.light-theme .admin-panel-fullscreen h3 {
+  color: #28a745;
+  border-bottom: 2px solid #e0e0e0;
 }
 
-.user-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px;
-  background-color: #f8f9fa;
-  border-radius: 4px;
-  border-left: 4px solid #dee2e6;
+/* Panel de Admin dentro del content-wrapper */
+.content-wrapper .admin-panel {
+  width: 100%;
+  margin-bottom: 1rem;
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-.user-info {
-  display: flex;
-  gap: 15px;
-  align-items: center;
+.content-wrapper .admin-panel h3 {
+  color: #0bf516;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+  border-bottom: 1px solid #333;
+  padding-bottom: 0.5rem;
 }
 
-.user-name {
-  font-weight: bold;
-  color: #495057;
+/* Tema claro para panel de admin en content-wrapper */
+.light-theme .content-wrapper .admin-panel {
+  background-color: #cecccc;
+  border: 1px solid #e0e0e0;
+  color: #333333;
 }
 
-.user-login {
-  color: #6c757d;
-  font-style: italic;
-}
-
-.user-role {
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: bold;
-  text-transform: uppercase;
-}
-
-.user-role.admin {
-  background-color: #31db07;
-  color: rgb(163, 18, 18);
-}
-
-.user-role.user {
-  background-color: #6c757d;
-  color: white;
-}
-
-.user-status {
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: bold;
-  text-transform: uppercase;
-}
-
-.user-status.approved {
-  background-color: #28a745;
-  color: rgb(216, 39, 39);
-}
-
-.user-status.pending {
-  background-color: #ffc107;
-  color: #212529;
-}
-
-.user-status.rejected {
-  background-color: #dc3545;
-  color: rgb(189, 11, 11);
-}
-
-.user-actions {
-  display: flex;
-  gap: 5px;
-}
-
-.approve-btn {
-  background-color: #28a745;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.approve-btn:hover {
-  background-color: #218838;
-}
-
-.reject-btn {
-  background-color: #dc3545;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.reject-btn:hover {
-  background-color: #c82333;
-}
-
-.admin-filter {
-  margin-top: 10px;
-  padding: 10px;
-  background-color: #e7f3ff;
-  border-radius: 2px;
-  border-left: 5px solid #00ff37;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-weight: bold;
-  color: #ee078e;
-}
-
-.checkbox-label input[type="checkbox"] {
-  transform: scale(1.2);
-}
-
-.task-admin-info {
-  margin-top: 10px;
-  padding: 8px;
-  background-color: #ccd1d6;
-  border-radius: 4px;
-  border-left: 4px solid #cc10d3; /* color de Ver todas las tareas del sistema */
-}
-
-.assigned-user {
-  font-weight: bold;
-  color: #007bff;
-}
-
-.reassign-select {
-  padding: 4px 8px;
-  border: 1px solid #ddd;
-  border-radius: 3px;
-  background-color: #fff;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.reassign-select:hover {
-  border-color: #ff1e00;
+.light-theme .content-wrapper .admin-panel h3 {
+  color: #28a745;
+  border-bottom: 1px solid #e0e0e0;
 }
 
 /* Responsive */
 @media (max-width: 768px) {
   .task-manager {
-    padding: 1rem;
+    padding: 0.3rem;
+    font-size: 12px;
   }
   
   .header {
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.5rem;
     text-align: center;
+    padding: 6px 8px;
+  }
+  
+  .user-info h2 {
+    font-size: 14px;
   }
   
   .filters-grid {
@@ -1236,12 +1210,12 @@
   
   .header-actions {
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.3rem;
   }
   
   .notifications-dropdown {
     right: -50px;
-    min-width: 250px;
+    min-width: 200px;
   }
   
   .task-badges {
@@ -1251,15 +1225,24 @@
   
   .task-time-info {
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.3rem;
   }
   
   .time-stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+  
+  .admin-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 480px) {
+  .task-manager {
+    padding: 0.2rem;
+    font-size: 11px;
+  }
+  
   .stats-grid {
     grid-template-columns: 1fr;
   }
@@ -1267,7 +1250,36 @@
   .task-badges {
     justify-content: center;
   }
+  
+  .admin-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .user-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+  }
+  
+  .user-item .user-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
+
+/* Optimización para pantallas grandes */
+@media (min-width: 1200px) {
+  .task-manager {
+    padding: 0.8rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  .admin-stats {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
 /* Responsive for Admin Panel */
 .role-selector-modal {
   position: fixed;
@@ -1283,7 +1295,7 @@
 }
 
 .role-selector-content {
-  background: #2a2a2a;
+  background: #e70808;
   padding: 2rem;
   border-radius: 12px;
   text-align: center;
@@ -1303,4 +1315,305 @@
   background: #1a1a1a;
   color: white;
   font-size: 1rem;
+}
+
+/* Estilos para gestión de usuarios -cambiar de rol*/
+.role-assign-select,
+.role-change-select {
+  padding: 3px 6px;
+  border: 2px solid #0d0e0d;
+  border-radius: 3px;
+  background: #f0eeee;
+  color: rgb(2, 0, 0);
+  font-size: 0.75rem;
+  margin-right: 4px;
+  cursor: pointer;
+}
+
+.role-assign-select:hover,
+.role-change-select:hover {
+  background: #2a2a2a;
+}
+
+.role-assign-select option,
+.role-change-select option {
+  background-color: #2a2a2a;
+  color: white;
+}
+/* Botones para eliminar los usuarios OK */
+.delete-user-btn {
+  padding: 3px 6px;
+  border: 1px solid #e09595;
+  border-radius: 3px;
+  background: transparent;
+  color: #fc0505;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.delete-user-btn:hover {
+  background: #b37575;
+  color: white;
+}
+/* Botones para rechazar los usuarios OK */
+.reject-btn {
+  padding: 3px 6px;
+  border: 1px solid #ff6b35;
+  border-radius: 3px;
+  background: transparent;
+  color: #ff6b35;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-left: 4px;
+}
+
+.reject-btn:hover {
+  background: #ff6b35;
+  color: white;
+}
+
+.no-pending-users {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  padding: 1rem;
+  background: #ec0b0b;
+  border-radius: 8px;
+  margin-top: 1rem;
+}
+
+/* Optimización para zoom 100% y consistencia del body */
+html, body {
+  zoom: 1;
+  transform: scale(1);
+  transform-origin: 0 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Panel de Administrador */
+.task-manager {
+  transform: scale(1);
+  transform-origin: top left;
+  width: 100vw;
+  height: 100vh;
+  overflow: auto;
+}
+
+/* Ajustes específicos para elementos compactos */
+.compact-layout {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.compact-layout .header {
+  min-height: 40px;
+}
+
+.compact-layout .admin-panel {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.compact-layout .user-item {
+  min-height: 35px;
+}
+
+.compact-layout .stat-card {
+  min-height: 50px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Botones más compactos 
+.btn-compact {
+  padding: 5px px;
+  font-size: 11px;
+  border-radius: 3px;
+}
+
+/* Formularios más compactos 
+.form-compact input,
+.form-compact select,
+.form-compact textarea {
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+/* Grid más eficiente */
+.grid-compact {
+  gap: 4px;
+}
+
+.grid-compact .stat-card {
+  padding: 4px;
+}
+
+.grid-compact .user-item {
+  padding: 6px;
+}
+
+/* Espaciado optimizado 
+.spacing-compact {
+  margin: 2px 0;
+  padding: 2px 4px;
+}*/
+
+/* Pantalla de Registro  - Centrada con fondo adaptable */
+.pending-approval-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #aa2b2b; /* Por defecto tema oscuro */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.pending-content {
+  background-color: #2a2a2a; /* Por defecto tema oscuro */
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  text-align: center;
+ 
+  max-width: 500px;
+  width: 90%;
+  color: #fff; /* Texto blanco por defecto */
+}
+
+.pending-content h2 {
+  color: #0bf516; /* Verde neón por defecto */
+  margin-bottom: 1rem;
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.pending-icon {
+  font-size: 3rem;
+  margin: 1rem 0;
+}
+
+.pending-content p {
+  margin: 0.8rem 0;
+  line-height: 1.5;
+  color: #ccc; /* Gris claro por defecto */
+}
+
+.user-info-pending {
+  background-color: #3a3a3a; /* Fondo oscuro por defecto */
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  border-left: 4px solid #0bf516; /* Verde neón por defecto */
+}
+
+.user-info-pending p {
+  margin: 0.5rem 0;
+  color: #fff; /* Texto blanco por defecto */
+}
+
+.user-info-pending strong {
+  color: #0bf516; /* Verde neón por defecto */
+  font-weight: 600;
+}
+
+/* Tema claro para pantalla de Registro Exitoso */
+.light-theme .pending-approval-screen {
+  background-color:#cecccc;
+}
+
+.light-theme .pending-content {
+  background-color: white;
+  color: #333;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.light-theme .pending-content h2 {
+  color: #28a745;
+}
+
+.light-theme .pending-content p {
+  color: #555;
+}
+
+.light-theme .user-info-pending {
+  background-color: #f8f9fa;
+  border-left: 4px solid #28a745;
+}
+
+.light-theme .user-info-pending p {
+  color: #333;
+}
+
+.light-theme .user-info-pending strong {
+  color: #28a745;
+}
+
+.light-theme .pending-approval-screen .logout-btn {
+  background-color: #dc3545;
+  color: white;
+}
+
+.light-theme .pending-approval-screen .logout-btn:hover {
+  background-color: #c82333;
+}
+
+
+  /* Hacer más pequeño el ThemeToggle en pending-approval */
+  .padding: 3px 3px;{
+  font-size: 12px;
+  transform: scale(0.8);
+} 
+
+.pending-approval-screen .theme-toggle .theme-text {
+  font-size: 11px;
+}
+
+/* Estilos adicionales para asegurar que el tema claro se aplique correctamente */
+body.light-theme .pending-approval-screen {
+  background-color: white !important;
+}
+
+body.light-theme .pending-content {
+  background-color: white !important;
+  color: #333 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+}
+
+body.light-theme .pending-content h2 {
+  color: #28a745 !important;
+}
+
+body.light-theme .pending-content p {
+  color: #555 !important;
+}
+
+body.light-theme .user-info-pending {
+  background-color: #f8f9fa !important;
+  border-left: 4px solid #28a745 !important;
+}
+
+body.light-theme .user-info-pending p {
+  color: #333 !important;
+}
+
+body.light-theme .user-info-pending strong {
+  color: #28a745 !important;
+}
+
+body.light-theme .pending-approval-screen .logout-btn {
+  background-color: #dc3545 !important;
+  color: white !important;
+}
+
+body.light-theme .pending-approval-screen .logout-btn:hover {
+  background-color: #c82333 !important;
 }

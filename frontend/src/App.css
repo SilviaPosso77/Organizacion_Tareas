@@ -1,42 +1,95 @@
+/* Reset global */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Arial', sans-serif;
+  width: 100%;
+  margin: 0;
+  padding: 0%;
+}
+
+
+
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.App {
+  height: 100vh;
+  width: 100vw;
+  position: relative;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* Posicionamiento del ThemeToggle para evitar superposición */
+.App > .theme-toggle {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+/* Tema oscuro */
+.dark-theme {
+  background-color: #070000;
+  color: #f5efef;
+  transition: all 0.3s ease;
 }
 
-.card {
-  padding: 2em;
+.dark-theme .App {
+  background-color: #070000;
+  color: #f5efef;
 }
 
-.read-the-docs {
-  color: #888;
+/* Tema claro */
+.light-theme {
+  background-color: #ffffff;
+  color: #333333;
+  transition: all 0.3s ease;
 }
+
+.light-theme .App {
+  background-color: #ffffff;
+  color: #333333;
+}
+
+/* Estilos para el modal de login en tema claro */
+.light-theme .login-modal {
+  background: #f8f9fa;
+  color: #333333;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.light-theme .login-modal input {
+  background: #ffffff;
+  color: #333333;
+  border: 2px solid #e0e0e0;
+}
+
+.light-theme .login-modal input:focus {
+  border-color: #0bf516;
+}
+
+.light-theme .role-select {
+  background: #ffffff;
+  color: #333333;
+  border: 2px solid #e0e0e0;
+}
+
+.light-theme .role-select:focus {
+  border-color: #0bf516;
+}
+
+.light-theme .role-select option {
+  background-color: #ffffff;
+  color: #333333;
+}
+
+

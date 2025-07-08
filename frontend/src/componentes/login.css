@@ -1,3 +1,25 @@
+/* Estilos globales del body para tema oscuro y claro */
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Arial', sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Tema oscuro para body (por defecto) */
+body,
+body.dark-theme {
+  background-color: #121212;
+  color: #ffffff;
+}
+
+/* Tema claro para body */
+body.light-theme {
+  background-color: #f8f9fa;
+  color: #333333;
+}
+
 .modal-background {
   /*background: rgba(0, 0, 0, 0.6);*/
   background-image: url(https://github.com/SilviaPosso77/Organizacion_Tareas/blob/main/frontend/public/body.jpg);
@@ -139,10 +161,179 @@ input::placeholder {
 }
 .App {
   font-family: 'Arial', sans-serif;
-  background-color: #121212; /* Fondo oscuro */
-  color: rgb(28, 231, 9); /* Texto blanco */
-  min-height: 100vh; /* Asegura que ocupe toda la altura */
+  min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
+  /* El color y fondo se toman del body según el tema */
+}
+
+/* Estilos para tema claro del Login */
+.light-theme .modal-background {
+  background-image: url(https://github.com/SilviaPosso77/Organizacion_Tareas/blob/main/frontend/public/body.jpg);
+}
+
+.light-theme .login-modal {
+  background: #ffffff;
+  color: #333333;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.light-theme .close-button {
+  color: #333333;
+}
+
+.light-theme .logo {
+  color: #333333;
+}
+
+.light-theme h2 {
+  color: #333333;
+}
+
+.light-theme input {
+  background-color: #f8f9fa;
+  color: #333333;
+  border: 1px solid #dee2e6;
+}
+
+.light-theme input:focus {
+  border-color: #28a745;
+}
+
+.light-theme input::placeholder {
+  color: #6c757d;
+}
+
+.light-theme .role-select {
+  background-color: #f8f9fa;
+  color: #333333;
+  border: 1px solid #dee2e6;
+}
+
+.light-theme .role-select:focus {
+  border-color: #28a745;
+}
+
+.light-theme .role-select option {
+  background-color: #ffffff;
+  color: #333333;
+}
+
+.light-theme .forgot-password {
+  color: #007bff;
+}
+
+.light-theme .login-button {
+  background-color: #28a745;
+  color: white;
+}
+
+.light-theme .login-button:hover {
+  background-color: #218838;
+}
+
+.light-theme .register-text {
+  color: #6c757d;
+}
+
+.light-theme .register-text a {
+  color: #007bff;
+}
+
+.light-theme .register-text a:hover {
+  color: #0056b3;
+}
+
+/* Estilos para tema oscuro del Login (por defecto) */
+.dark-theme .modal-background,
+body:not(.light-theme) .modal-background {
+  background-image: url(https://github.com/SilviaPosso77/Organizacion_Tareas/blob/main/frontend/public/body.jpg);
+}
+
+.dark-theme .login-modal,
+body:not(.light-theme) .login-modal {
+  background: #1a1a1a;
+  color: white;
+}
+
+.dark-theme .close-button,
+body:not(.light-theme) .close-button {
+  color: white;
+}
+
+.dark-theme .logo,
+body:not(.light-theme) .logo {
+  color: white;
+}
+
+.dark-theme h2,
+body:not(.light-theme) h2 {
+  color: white;
+}
+
+.dark-theme input,
+body:not(.light-theme) input {
+  background-color: #2a2a2a;
+  color: white;
+  border: 1px solid #444;
+}
+
+.dark-theme input:focus,
+body:not(.light-theme) input:focus {
+  border-color: #33f502;
+}
+
+.dark-theme input::placeholder,
+body:not(.light-theme) input::placeholder {
+  color: #888;
+}
+
+.dark-theme .role-select,
+body:not(.light-theme) .role-select {
+  background-color: #2a2a2a;
+  color: white;
+  border: 1px solid #444;
+}
+
+.dark-theme .role-select:focus,
+body:not(.light-theme) .role-select:focus {
+  border-color: #33f502;
+}
+
+.dark-theme .role-select option,
+body:not(.light-theme) .role-select option {
+  background-color: #2a2a2a;
+  color: white;
+}
+
+.dark-theme .forgot-password,
+body:not(.light-theme) .forgot-password {
+  color: #cceeff;
+}
+
+.dark-theme .login-button,
+body:not(.light-theme) .login-button {
+  background-color: #0bf516;
+  color: black;
+}
+
+.dark-theme .login-button:hover,
+body:not(.light-theme) .login-button:hover {
+  background-color: #09d414;
+}
+
+.dark-theme .register-text,
+body:not(.light-theme) .register-text {
+  color: #d0e3ff;
+}
+
+.dark-theme .register-text a,
+body:not(.light-theme) .register-text a {
+  color: white;
+}
+
+.dark-theme .register-text a:hover,
+body:not(.light-theme) .register-text a:hover {
+  color: #0bf516;
 }

@@ -9,7 +9,7 @@ const Login = ({ onClose }) => {
   const [fecha, setFecha] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [isRegister, setIsRegister] = useState(false);
-  const [rol, setRol] = useState('user');
+  const [rol, setRol] = useState('');
 
   const handleSubmit = async (e) => {
   e.preventDefault();
@@ -36,7 +36,7 @@ const Login = ({ onClose }) => {
     // Solo agregar el nombre si es registro
     if (isRegister) {
       data.nombre_completo = name;
-      data.rol = 'user';
+      data.rol = 'pendiente'; // Rol por defecto hasta que el admin lo asigne
     }
     
     console.log('Datos a enviar:', data);
@@ -84,7 +84,7 @@ const Login = ({ onClose }) => {
     setDocumento('');
     setFecha('');
     setName('');
-    setRol('user'); // Resetear el rol al valor por defecto
+    // No necesitamos resetear rol porque ya no se usa en registro
   };
 
   return (
@@ -119,8 +119,6 @@ const Login = ({ onClose }) => {
                 onChange={(e) => setName(e.target.value)}
                 required
               />
-               {/* aqui elimine la selecion de roles */}
-            
             </>
           )}
            {/* Campo para fecha de nacimiento */}

@@ -1,0 +1,40 @@
+/* ThemeToggle.css */
+.theme-toggle {
+  position: fixed;
+  top: 0%;
+  right: 0%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50px;
+  padding: 5px 5px;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.theme-text {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Estilos para tema claro */
+.light-theme .theme-toggle {
+  background: rgba(0, 0, 0, 0.1);
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  color: black;
+}
+
+.light-theme .theme-toggle:hover {
+  background: rgba(0, 0, 0, 0.2);
+}

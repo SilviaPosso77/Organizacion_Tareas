@@ -31,6 +31,25 @@ def validar_fecha_nacimiento(fecha):
     except ValueError:
         return False, "Formato de fecha inválido"
 
+def validar_cedula_colombiana(cedula):
+    """Valida que la cédula sea un formato válido colombiano"""
+    # Remover espacios y caracteres no numéricos
+    cedula_limpia = ''.join(filter(str.isdigit, str(cedula)))
+    
+    # Verificar que tenga entre 6 y 10 dígitos (rango válido en Colombia)
+    if len(cedula_limpia) < 6 or len(cedula_limpia) > 10:
+        return False, "La cédula debe tener entre 6 y 10 dígitos"
+    
+    # Verificar que no sea una secuencia de números iguales
+    if len(set(cedula_limpia)) == 1:
+        return False, "La cédula no puede ser una secuencia de números iguales"
+    
+    # Verificar que no comience con 0 (excepto para cédulas de menos de 8 dígitos)
+    if len(cedula_limpia) >= 8 and cedula_limpia[0] == '0':
+        return False, "La cédula no puede comenzar con 0"
+    
+    return True, cedula_limpia
+
 # API Views para autenticación
 class LoginAPIView(APIView):
     """API View para autenticación de usuarios"""
@@ -130,6 +149,84 @@ class RegisterAPIView(APIView):
 class LoginViewSet(viewsets.ModelViewSet):
     queryset = Login.objects.all()
     serializer_class = LoginSerializer
+    
+    def update(self, request, *args, **kwargs):
+        """Actualizar información del usuario (especialmente el rol)"""
+        try:
+            instance = self.get_object()
+            
+            # Validar datos requeridos
+            documento_identidad = request.data.get('documento_identidad')
+            nombre_completo = request.data.get('nombre_completo')
+            fecha_nacimiento = request.data.get('fecha_nacimiento')
+            rol = request.data.get('rol')
+            
+            if not documento_identidad or not nombre_completo or not fecha_nacimiento:
+                return Response(
+                    {'error': 'Documento de identidad, nombre completo y fecha de nacimiento son requeridos'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validar fecha de nacimiento
+            es_valida, resultado = validar_fecha_nacimiento(fecha_nacimiento)
+            if not es_valida:
+                return Response(
+                    {'error': resultado},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Actualizar los datos
+            instance.documento_identidad = documento_identidad
+            instance.nombre_completo = nombre_completo
+            instance.fecha_nacimiento = resultado
+            
+            # Manejar email de manera segura
+            email_nuevo = request.data.get('email')
+            if email_nuevo is not None:
+                # Si se proporciona un email vacío, establecer como null
+                instance.email = email_nuevo if email_nuevo.strip() else None
+            # Si no se proporciona email, mantener el valor actual
+            
+            if rol:
+                instance.rol = rol
+            
+            instance.save()
+            
+            return Response({
+                'id': instance.id,
+                'documento_identidad': instance.documento_identidad,
+                'nombre_completo': instance.nombre_completo,
+                'email': instance.email,
+                'fecha_nacimiento': instance.fecha_nacimiento,
+                'rol': instance.rol,
+                'message': 'Usuario actualizado exitosamente'
+            })
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Error al actualizar usuario: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def destroy(self, request, *args, **kwargs):
+        """Eliminar usuario"""
+        try:
+            instance = self.get_object()
+            usuario_nombre = instance.nombre_completo
+            
+            # Eliminar el usuario
+            instance.delete()
+            
+            return Response(
+                {'message': f'Usuario "{usuario_nombre}" eliminado exitosamente'},
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Error al eliminar usuario: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class TaskViewSet(viewsets.ModelViewSet):
     queryset = Task.objects.all()
@@ -137,9 +234,17 @@ class TaskViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user_id = self.request.query_params.get('user_id')
-        if user_id:
+        show_all = self.request.query_params.get('show_all', 'false').lower() == 'true'
+        
+        if show_all:
+            # Mostrar todas las tareas del sistema (para administradores)
+            return Task.objects.all().order_by('order', 'created_at')
+        elif user_id:
+            # Mostrar solo las tareas del usuario específico
             return Task.objects.filter(user__id=user_id).order_by('order', 'created_at')
-        return Task.objects.all().order_by('order', 'created_at')
+        else:
+            # Por defecto, mostrar todas las tareas
+            return Task.objects.all().order_by('order', 'created_at')
     
     def perform_create(self, serializer):
         user_id = self.request.data.get('user_id')

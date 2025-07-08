@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import ThemeToggle from './ThemeToggle';
 import './TaskManager.css';
 
 
 // Este es el estado de las tareas categorizadas
-const TaskManager = ({ userId, userData, onLogout }) => {
+const TaskManager = ({ userId, userData, onLogout, isDarkMode, toggleTheme }) => {
   // Estados principales
   const [tareas, setTareas] = useState([]);
   const [nuevaTarea, setNuevaTarea] = useState({
@@ -26,13 +27,11 @@ const TaskManager = ({ userId, userData, onLogout }) => {
 
 const [showRoleSelector, setShowRoleSelector] = useState(false);
 const [availableRoles] = useState([
-  'Nuevo usuario',
-  'Usuario registrado', 
-  'Usuario autenticado',
-  'Desarrolladora',
-  'Administrador',
-  'Desarrolladora (Flask)',
-  'Desarrolladora (Django)'
+  'usuario',
+  'dev',
+  'admin',
+  'dev_flask',
+  'dev_django'
 ]);
 
 
@@ -90,6 +89,18 @@ const [availableRoles] = useState([
   const obtenerNombreUsuario = (userId) => {
     const usuario = usuarios.find(u => u.id === userId);
     return usuario ? usuario.nombre_completo : 'Usuario desconocido';
+  };
+
+  const obtenerNombreRol = (rol) => {
+    const nombres = {
+      'usuario': 'Usuario',
+      'dev': 'Desarrolladora',
+      'dev_flask': 'Desarrolladora Flask',
+      'dev_django': 'Desarrolladora Django',
+      'admin': 'Administrador',
+      'pendiente': 'Pendiente'
+    };
+    return nombres[rol] || rol;
   };
 //Funcion de los roles
 const handleRoleChange = async (selectedRole) => {
@@ -190,7 +201,9 @@ const handleRoleChange = async (selectedRole) => {
   };
 
   const obtenerUsuarios = async () => {
-    if (userData?.rol !== 'admin') return;
+    if (!esAdministrador()) {
+      return;
+    }
     
     try {
       const response = await axios.get('http://127.0.0.1:8000/api/login/');
@@ -201,7 +214,7 @@ const handleRoleChange = async (selectedRole) => {
   };
 
   const obtenerEstadisticasGenerales = async () => {
-    if (userData?.rol !== 'admin') return;
+    if (!esAdministrador()) return;
     
     try {
       const response = await axios.get(`${API_URL}?show_all=true`);
@@ -223,6 +236,12 @@ const handleRoleChange = async (selectedRole) => {
 
   const crearTarea = async (e) => {
     e.preventDefault();
+    
+    // Verificar permisos
+    if (!puedeCrearTareas()) {
+      alert('No tienes permisos para crear tareas');
+      return;
+    }
     
     if (!nuevaTarea.task.trim()) {
       alert('El título de la tarea es requerido');
@@ -274,6 +293,12 @@ const handleRoleChange = async (selectedRole) => {
   };
 
   const iniciarEdicion = (tarea) => {
+    // Verificar permisos
+    if (!puedeEditarTareas() && tarea.user_id !== userId) {
+      alert('No tienes permisos para editar esta tarea');
+      return;
+    }
+    
     setEditandoTarea(tarea.id);
     setTareaEditada({
       task: tarea.task,
@@ -333,7 +358,7 @@ const handleRoleChange = async (selectedRole) => {
   };
 {/* Eliminar las tareas- Administrador*/}
   const eliminarTareaAdmin = async (id) => {
-    if (userData?.rol !== 'admin', 'user') {
+    if (!esAdministrador()) {
       alert('No tienes permisos para eliminar esta tarea');
       return;
     }
@@ -352,7 +377,8 @@ const handleRoleChange = async (selectedRole) => {
 
 {/* Eliminar las tareas- Usuarios*/}
   const eliminarTareaUser = async (id) => {
-    if (userData?.rol !== 'user') {
+    // Verificar si el usuario tiene permisos para eliminar tareas
+    if (!puedeEditarTareas()) {
       alert('No tienes permisos para eliminar esta tarea');
       return;
     }
@@ -373,7 +399,7 @@ const handleRoleChange = async (selectedRole) => {
 
 
   const reasignarTarea = async (tareaId, nuevoUsuarioId) => {
-    if (userData?.rol !== 'admin') {
+    if (!esAdministrador()) {
       alert('No tienes permisos para reasignar tareas');
       return;
     }
@@ -391,22 +417,101 @@ const handleRoleChange = async (selectedRole) => {
     }
   };
 
-  const cambiarEstadoUsuario = async (usuarioId, nuevoEstado) => {
-    if (userData?.rol !== 'admin') {
-      alert('No tienes permisos para cambiar el estado de usuarios');
+  const cambiarRolUsuario = async (usuarioId, nuevoRol) => {
+    if (!esAdministrador()) {
+      alert('No tienes permisos para cambiar roles de usuarios');
       return;
     }
 
     try {
-      await axios.put(`http://127.0.0.1:8000/api/login/${usuarioId}/`, {
-        estado: nuevoEstado
-      });
+      // Obtener información actual del usuario
+      const usuarioActual = usuarios.find(u => u.id === usuarioId);
       
-      alert(`Usuario ${nuevoEstado === 'approved' ? 'aprobado' : 'rechazado'} exitosamente`);
+      if (!usuarioActual) {
+        alert('Usuario no encontrado');
+        return;
+      }
+      
+      const datosActualizacion = {
+        documento_identidad: usuarioActual.documento_identidad,
+        nombre_completo: usuarioActual.nombre_completo,
+        fecha_nacimiento: usuarioActual.fecha_nacimiento,
+        rol: nuevoRol
+      };
+      
+      // Solo incluir email si tiene un valor válido
+      if (usuarioActual.email && usuarioActual.email.trim() !== '') {
+        datosActualizacion.email = usuarioActual.email;
+      }
+      
+      const response = await axios.put(`http://127.0.0.1:8000/api/login/${usuarioId}/`, datosActualizacion);
+      
+      if (nuevoRol === 'pendiente') {
+        alert(`Usuario "${usuarioActual.nombre_completo}" ha sido desactivado. Ahora está en estado pendiente.`);
+      } else {
+        alert(`Rol actualizado exitosamente. "${usuarioActual.nombre_completo}" ahora es: ${obtenerNombreRol(nuevoRol)}`);
+      }
+      
       obtenerUsuarios();
     } catch (error) {
-      console.error('Error al cambiar estado del usuario:', error);
-      alert('Error al cambiar el estado del usuario');
+      console.error('Error al cambiar rol:', error);
+      
+      let mensajeError = 'Error al cambiar el rol del usuario.';
+      if (error.response?.data?.error) {
+        mensajeError = error.response.data.error;
+      } else if (error.response?.data?.message) {
+        mensajeError = error.response.data.message;
+      } else if (error.response?.status === 404) {
+        mensajeError = 'Usuario no encontrado en el servidor';
+      } else if (error.response?.status === 403) {
+        mensajeError = 'No tienes permisos para realizar esta acción';
+      }
+      
+      alert(mensajeError);
+    }
+  };
+
+  const eliminarUsuario = async (usuarioId, nombreUsuario) => {
+    if (!esAdministrador()) {
+      alert('No tienes permisos para eliminar usuarios');
+      return;
+    }
+
+    const confirmacion = window.confirm(
+      `¿Estás seguro de que deseas eliminar permanentemente al usuario "${nombreUsuario}"?\n\n` +
+      'Esta acción no se puede deshacer y eliminará:\n' +
+      '- El usuario y toda su información\n' +
+      '- Todas sus tareas asociadas\n' +
+      '- Todos sus comentarios\n\n' +
+      'Haz clic en "Aceptar" para confirmar o "Cancelar" para abortar.'
+    );
+
+    if (!confirmacion) {
+      return;
+    }
+
+    try {
+      const response = await axios.delete(`http://127.0.0.1:8000/api/login/${usuarioId}/`);
+      
+      alert(`Usuario "${nombreUsuario}" eliminado exitosamente del sistema.`);
+      obtenerUsuarios();
+    } catch (error) {
+      console.error('Error al eliminar usuario:', error);
+      
+      let mensajeError = 'Error al eliminar el usuario.';
+      if (error.response?.data?.error) {
+        mensajeError = error.response.data.error;
+      } else if (error.response?.data?.message) {
+        mensajeError = error.response.data.message;
+      } else if (error.response?.status === 404) {
+        mensajeError = 'Usuario no encontrado en el servidor';
+      } else if (error.response?.status === 403) {
+        mensajeError = 'No tienes permisos para eliminar este usuario';
+      } else if (error.response?.status === 405) {
+        mensajeError = 'Método no permitido. El endpoint DELETE no está disponible';
+      }
+      
+      alert(mensajeError);
     }
   };
 
@@ -472,41 +577,205 @@ const handleRoleChange = async (selectedRole) => {
     obtenerTeams();
     obtenerNotifications();
     
-    if (userData?.rol === 'admin') {
+    if (esAdministrador()) {
       obtenerUsuarios();
     }
   }, [filtros, userData]);
 
   useEffect(() => {
-    if (userData?.rol === 'admin' && usuarios.length > 0) {
+    if (esAdministrador() && usuarios.length > 0) {
       obtenerEstadisticasGenerales();
     }
   }, [usuarios, userData]);
 
+  // Función para obtener las funcionalidades disponibles según el rol
+  const obtenerFuncionalidadesPorRol = (rol) => {
+    switch (rol) {
+      case 'usuario':
+        return {
+          puedeCrearTareas: true,
+          puedeVerTodasSusTareas: true,
+          puedeBuscarTareas: true,
+          puedeModificarTareas: true,
+          puedeEliminarTareas: true,
+          puedeAsignarFechas: true,
+          puedeMarcarCompletadas: true,
+          puedeFiltrarPorPrioridad: true,
+          puedeAgregarSubtareas: true,
+          puedeVerCalendario: true,
+          puedeGenerarReportes: true,
+          puedeFiltrarPorCategoria: true,
+          puedeVerPerfil: true,
+          puedeExportarCSV: true,
+          puedeOrdenarPorFecha: true,
+          puedeVerTareasAsignadas: true,
+          puedeAgregarNotas: true,
+          puedeRecibirNotificaciones: true,
+          puedeRecibirResumenDiario: true
+        };
+      case 'dev':
+      case 'dev_flask':
+      case 'dev_django':
+        return {
+          puedeCrearTareas: true,
+          puedeVerTodasSusTareas: true,
+          puedeBuscarTareas: true,
+          puedeModificarTareas: true,
+          puedeEliminarTareas: true,
+          puedeAsignarFechas: true,
+          puedeMarcarCompletadas: true,
+          puedeFiltrarPorPrioridad: true,
+          puedeAgregarSubtareas: true,
+          puedeVerCalendario: true,
+          puedeGenerarReportes: true,
+          puedeFiltrarPorCategoria: true,
+          puedeVerPerfil: true,
+          puedeExportarCSV: true,
+          puedeOrdenarPorFecha: true,
+          puedeVerTareasAsignadas: true,
+          puedeAgregarNotas: true,
+          puedeRecibirNotificaciones: true,
+          puedeRecibirResumenDiario: true,
+          puedeValidarEntradas: true,
+          puedeImplementarDragDrop: true,
+          puedeValidarEmail: true,
+          puedeCrearEndpointsPDF: true,
+          puedeImplementarBusquedaTiempoReal: true,
+          puedeAgregarPruebas: true
+        };
+      case 'admin':
+        return {
+          puedeCrearTareas: true,
+          puedeVerTodasSusTareas: true,
+          puedeBuscarTareas: true,
+          puedeModificarTareas: true,
+          puedeEliminarTareas: true,
+          puedeAsignarFechas: true,
+          puedeMarcarCompletadas: true,
+          puedeFiltrarPorPrioridad: true,
+          puedeAgregarSubtareas: true,
+          puedeVerCalendario: true,
+          puedeGenerarReportes: true,
+          puedeFiltrarPorCategoria: true,
+          puedeVerPerfil: true,
+          puedeExportarCSV: true,
+          puedeOrdenarPorFecha: true,
+          puedeVerTareasAsignadas: true,
+          puedeAgregarNotas: true,
+          puedeRecibirNotificaciones: true,
+          puedeRecibirResumenDiario: true,
+          puedeGestionarUsuarios: true,
+          puedeEliminarUsuarios: true,
+          puedeInactivarUsuarios: true,
+          puedeVerEstadisticas: true,
+          puedeCrearRoles: true,
+          puedeAsignarTareas: true,
+          puedeVerTodasLasTareas: true,
+          puedeReasignarTareas: true
+        };
+      case 'pendiente':
+        return {
+          puedeCrearTareas: false,
+          puedeVerTodasSusTareas: false,
+          esperandoAprobacion: true
+        };
+      default:
+        return {
+          puedeCrearTareas: false,
+          puedeVerTodasSusTareas: false,
+          rolNoValido: true
+        };
+    }
+  };
+
+  // Obtener funcionalidades del usuario actual
+  const funcionalidades = obtenerFuncionalidadesPorRol(userData?.rol);
+  
+  // Función auxiliar para verificar si el usuario es administrador
+  const esAdministrador = () => {
+    return userData?.rol === 'admin';
+  };
+
+  // Función auxiliar para verificar si el usuario puede editar/eliminar tareas
+  const puedeEditarTareas = () => {
+    return ['usuario', 'dev', 'dev_flask', 'dev_django', 'admin'].includes(userData?.rol);
+  };
+
+  // Función auxiliar para verificar si el usuario puede crear tareas
+  const puedeCrearTareas = () => {
+    return ['usuario', 'dev', 'dev_flask', 'dev_django', 'admin'].includes(userData?.rol);
+  };
+  
+  // Pantalla de espera para usuarios pendientes por aprobación por parte del administrador
+  if (funcionalidades.esperandoAprobacion) {
+    return (
+      <div className="pending-approval-screen">
+        <ThemeToggle isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+        <div className="pending-content">
+          <h2>¡Registro Exitoso!</h2>
+          <div className="pending-icon">⏳</div>
+          <p>Tu cuenta ha sido creada exitosamente.</p>
+          <p>Tu solicitud está en revisión.</p>
+          <p>Un administrador asignará tu rol y te dará acceso pronto.</p>
+          <div className="user-info-pending">
+            <p><strong>Nombre:</strong> {userData.nombre_completo}</p>
+            <p><strong>Documento:</strong> {userData.documento_identidad}</p>
+            <p><strong>Estado:</strong> Pendiente de aprobación</p>
+          </div>
+          <button className="logout-btn" onClick={onLogout}>
+            Cerrar Sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Pantalla de error para roles no válidos
+  if (funcionalidades.rolNoValido) {
+    return (
+      <div className="invalid-role-screen">
+        <div className="invalid-content">
+          <h2>Acceso Restringido</h2>
+          <div className="invalid-icon">🚫</div>
+          <p>Tu cuenta no tiene un rol válido asignado.</p>
+          <p>Por favor, contacta al administrador para obtener acceso.</p>
+          <button className="logout-btn" onClick={onLogout}>
+            Cerrar Sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="task-manager">
+    <div className="task-manager compact-layout">
       <div className="header">
-
-        {/* Selector de rol para nuevos usuarios */}
-  {showRoleSelector && (
-  <div className="role-selector-modal">
-    <div className="role-selector-content">
-      <h3>Selecciona tu rol</h3>
-      <select onChange={(e) => handleRoleChange(e.target.value)}>
-        <option value="">Seleccionar rol...</option>
-        {availableRoles.map(role => (
-          <option key={role} value={role}>{role}</option>
-        ))}
-      </select>
-    </div>
-  </div>
-)}
-
+        
+        {/* Selector de rol para nuevos usuarios- administrador-Panel del admnistrador */}
+        {showRoleSelector && (
+          <div className="role-selector-modal">
+            <div className="role-selector-content">
+              <h3>Selecciona tu rol</h3>
+              <select onChange={(e) => handleRoleChange(e.target.value)}>
+                <option value="">Seleccionar rol...</option>
+                {availableRoles.map(role => (
+                  <option key={role} value={role}>
+                    {role === 'usuario' ? 'Usuario' : 
+                     role === 'dev' ? 'Desarrolladora' :
+                     role === 'dev_flask' ? 'Desarrolladora Flask' :
+                     role === 'dev_django' ? 'Desarrolladora Django' :
+                     role === 'admin' ? 'Administrador' : role}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
 
         <div className="user-info">
           <h2>Bienvenido, {userData.nombre_completo}</h2>
-          <p>Rol: <span className={`role-badge ${userData.rol}`}>{userData.rol}</span></p>
-          {userData.rol === 'admin' && (
+          <p>Rol: <span className={`role-badge ${userData.rol}`}>{obtenerNombreRol(userData.rol)}</span></p>
+          {esAdministrador() && (
             <button 
               className="admin-panel-btn"
               onClick={() => setShowAdminPanel(!showAdminPanel)}
@@ -524,77 +793,6 @@ const handleRoleChange = async (selectedRole) => {
           </button>
         </div>
       </div>
-
-      {/* Panel de Admin */}
-      {userData.rol === 'admin' && showAdminPanel && (
-        <div className="admin-panel">
-          <h3>Panel de Administrador</h3>
-          
-          {/* Estadísticas Generales */}
-          <div className="admin-stats">
-            <div className="stat-card">
-              <h4>Total de Tareas</h4>
-              <p>{estadisticasGenerales.totalTareas || 0}</p>
-            </div>
-            <div className="stat-card">
-              <h4>Total de Usuarios</h4>
-              <p>{estadisticasGenerales.totalUsuarios || 0}</p>
-            </div>
-            <div className="stat-card">
-              <h4>Tareas Pendientes</h4>
-              <p>{estadisticasGenerales.tareasPendientes || 0}</p>
-            </div>
-            <div className="stat-card">
-              <h4>Tareas Completadas</h4>
-              <p>{estadisticasGenerales.tareasCompletadas || 0}</p>
-            </div>
-            <div className="stat-card">
-              <h4>Tareas Vencidas</h4>
-              <p>{estadisticasGenerales.tareasVencidas || 0}</p>
-            </div>
-            
-            <div className="stat-card">
-              <h4>Progreso Promedio</h4>
-              <p>{estadisticasGenerales.promedioProgreso || 10}%</p>
-            </div>
-          </div>
-
-          {/* Gestión de Usuarios */}
-          <div className="admin-users">
-            <h4>Gestión de Usuarios</h4>
-            <div className="users-list">
-              {usuarios.map(usuario => (
-                <div key={usuario.id} className="user-item">
-                  <div className="user-info">
-                    <span className="user-name">{usuario.nombre_completo}</span>
-                    <span className="user-login">{usuario.documento_identidad}</span>
-                    <span className={`user-role ${usuario.rol}`}>{usuario.rol}</span>
-                    <span className={`user-status ${usuario.estado}`}>{usuario.estado}</span>
-                  </div>
-                  <div className="user-actions">
-                    {usuario.estado === 'pending' && (
-                      <>
-                        <button 
-                          className="approve-btn"
-                          onClick={() => cambiarEstadoUsuario(usuario.id, 'approved')}
-                        >
-                          Aprobar
-                        </button>
-                        <button 
-                          className="reject-btn"
-                          onClick={() => cambiarEstadoUsuario(usuario.id, 'rejected')}
-                        >
-                          Rechazar
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Notificaciones */}
       {showNotifications && (
@@ -619,341 +817,441 @@ const handleRoleChange = async (selectedRole) => {
         </div>
       )}
 
-      {/* Filtros */}
-      <div className="filters-container">
-        <div className="filters">
-          <div className="filter-group">
-            <input 
-              type="text" 
-              placeholder="Buscar tareas..."
-              value={filtros.search}
-              onChange={(e) => setFiltros({...filtros, search: e.target.value})}
-            />
-            <select 
-              value={filtros.priority}
-              onChange={(e) => setFiltros({...filtros, priority: e.target.value})}
-            >
-              <option value="">Todas las prioridades</option>
-              <option value="high">Alta</option>
-              <option value="medium">Media</option>
-              <option value="low">Baja</option>
-            </select>
-            <select 
-              value={filtros.status}
-              onChange={(e) => setFiltros({...filtros, status: e.target.value})}
-            >
-              <option value="">Todos los estados</option>
-              <option value="pending">Pendiente</option>
-              <option value="in_progress">En Progreso</option>
-              <option value="completed">Completada</option>
-              <option value="cancelled">Cancelada</option>
-            </select>
-          </div>
-          
-          {/* Filtro especial para admin */}
-          {userData.rol === 'admin' && (
-            <div className="admin-filter">
-              <label className="checkbox-label">
-                <input 
-                  type="checkbox"
-                  checked={filtros.show_all}
-                  onChange={(e) => setFiltros({...filtros, show_all: e.target.checked})}
-                />
-                Ver todas las tareas del sistema
-              </label>
+      {/* Contenedor principal con dos columnas */}
+      <div className="content-wrapper">
+        {/* Panel de Admin - Cuando está abierto ocupa todo el espacio */}
+        {esAdministrador() && showAdminPanel ? (
+          <div className="admin-panel-fullscreen compact-layout">
+            <h3>Panel de Administrador</h3>
+            
+            {/* Estadísticas Generales */}
+            <div className="admin-stats grid-compact">
+              <div className="stat-card">
+                <h4>Total de Tareas</h4>
+                <p>{estadisticasGenerales.totalTareas || 0}</p>
+              </div>
+              <div className="stat-card">
+                <h4>Total de Usuarios</h4>
+                <p>{estadisticasGenerales.totalUsuarios || 0}</p>
+              </div>
+              <div className="stat-card">
+                <h4>Tareas Pendientes</h4>
+                <p>{estadisticasGenerales.tareasPendientes || 0}</p>
+              </div>
+              <div className="stat-card">
+                <h4>Tareas Completadas</h4>
+                <p>{estadisticasGenerales.tareasCompletadas || 0}</p>
+              </div>
+              <div className="stat-card">
+                <h4>Tareas Vencidas</h4>
+                <p>{estadisticasGenerales.tareasVencidas || 0}</p>
+              </div>
+              <div className="stat-card">
+                <h4>Progreso Promedio</h4>
+                <p>{estadisticasGenerales.promedioProgreso || 0}%</p>
+              </div>
+              <div className="stat-card">
+                <h4>Usuarios Pendientes</h4>
+                <p>{usuarios.filter(u => u.rol === 'pendiente').length}</p>
+              </div>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Estadísticas */}
-      <div className="stats-container">
-        <div className="stats-item">
-          <h4>Total de Tareas</h4>
-          <p>{tareas.length}</p>
-        </div>
-        <div className="stats-item">
-          <h4>Completadas</h4>
-          <p>{tareas.filter(t => t.status === 'completed').length}</p>
-        </div>
-        <div className="stats-item">
-          <h4>Pendientes</h4>
-          <p>{tareas.filter(t => t.status === 'pending').length}</p>
-        </div>
-        <div className="stats-item">
-          <h4>En Progreso</h4>
-          <p>{tareas.filter(t => t.status === 'in_progress').length}</p>
-        </div>
-        <div className="stats-item">
-          <h4>Vencidas</h4>
-          <p>{tareas.filter(t => esTareaVencida(t.due_date, t.status)).length}</p>
-        </div>
-      </div>
+            {/* Gestión de Usuarios */}
+            <div className="admin-users">
+              <h4>Gestión de Usuarios</h4>
+              <div className="users-list">
+                {usuarios.map(usuario => (
+                  <div key={usuario.id} className="user-item grid-compact">
+                    <div className="user-info">
+                      <span className="user-name">{usuario.nombre_completo}</span>
+                      <span className="user-login">{usuario.documento_identidad}</span>
+                      <span className={`user-role ${usuario.rol}`}>{obtenerNombreRol(usuario.rol)}</span>
+                      <span className={`user-status activo`}>
+                        {usuario.rol === 'pendiente' ? 'pendiente' : 'activo'}
+                      </span>
+                    </div>
+                    <div className="user-actions">
+                      {/* Acciones para usuarios pendientes */}
+                      {usuario.rol === 'pendiente' && (
+                        <>
+                          <select 
+                            className="role-assign-select btn-compact"
+                            onChange={(e) => {
+                              if (e.target.value && window.confirm(`¿Asignar rol "${obtenerNombreRol(e.target.value)}" a ${usuario.nombre_completo}?`)) {
+                                cambiarRolUsuario(usuario.id, e.target.value);
+                              }
+                              e.target.value = '';
+                            }}
+                          >
+                            <option value="">Asignar rol...</option>
+                            <option value="usuario">Usuario</option>
+                            <option value="dev">Desarrolladora</option>
+                            <option value="dev_flask">Desarrolladora Flask</option>
+                            <option value="dev_django">Desarrolladora Django</option>
+                            <option value="admin">Administrador</option>
+                          </select>
+                          <button 
+                            className="reject-btn btn-compact"
+                            onClick={() => eliminarUsuario(usuario.id, usuario.nombre_completo)}
+                          >
+                            Rechazar
+                          </button>
+                        </>
+                      )}
+                      
+                      {/* Acciones para usuarios activos */}
+                      {usuario.rol !== 'pendiente' && (
+                        <>
+                          <select 
+                            className="role-change-select btn-compact"
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value && window.confirm(`¿Cambiar rol de ${usuario.nombre_completo} a "${obtenerNombreRol(e.target.value)}"?`)) {
+                                cambiarRolUsuario(usuario.id, e.target.value);
+                              }
+                              e.target.value = '';
+                            }}
+                          >
+                            <option value="">Cambiar rol...</option>
+                            <option value="usuario">Usuario</option>
+                            <option value="dev">Desarrolladora</option>
+                            <option value="dev_flask">Desarrolladora Flask</option>
+                            <option value="dev_django">Desarrolladora Django</option>
+                            <option value="admin">Administrador</option>
+                            <option value="pendiente">Desactivar usuario</option>
+                          </select>
+                          <button 
+                            className="delete-user-btn btn-compact"
+                            onClick={() => eliminarUsuario(usuario.id, usuario.nombre_completo)}
+                          >
+                            Eliminar
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                
+                {usuarios.filter(u => u.rol === 'pendiente').length === 0 && (
+                  <p className="no-pending-users">No hay usuarios pendientes de aprobación</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Columna izquierda - Controles */}
+            <div className="left-column">
 
-      {/* Formulario de nueva tarea */}
-      <div className="new-task-form">
-        <div className="form-header">
-          <h3>Nueva Tarea</h3>
-          <div className="form-mode-toggle">
-            <button 
-              className={`mode-btn ${modoCreacion === 'simple' ? 'active' : ''}`}
-              onClick={() => setModoCreacion('simple')}
-            >
-              Simple
-            </button>
-            <button 
-              className={`mode-btn ${modoCreacion === 'avanzado' ? 'active' : ''}`}
-              onClick={() => setModoCreacion('avanzado')}
-            >
-              Avanzado
-            </button>
-          </div>
-        </div>
-        
-        <form onSubmit={crearTarea} className="task-form">
-          <div className="form-row">
-            <input 
-              type="text" 
-              placeholder="Título de la tarea"
-              value={nuevaTarea.task}
-              onChange={(e) => setNuevaTarea({...nuevaTarea, task: e.target.value})}
-              required
-            />
-            <select 
-              value={nuevaTarea.priority}
-              onChange={(e) => setNuevaTarea({...nuevaTarea, priority: e.target.value})}
-            >
-              <option value="high">Alta</option>
-              <option value="medium">Media</option>
-              <option value="low">Baja</option>
-            </select>
-            <select 
-              value={nuevaTarea.status}
-              onChange={(e) => setNuevaTarea({...nuevaTarea, status: e.target.value})}
-            >
-              <option value="pending">Pendiente</option>
-              <option value="in_progress">En Progreso</option>
-              <option value="completed">Completada</option>
-              <option value="cancelled">Cancelada</option>
-            </select>
-          </div>
-          
-          {modoCreacion === 'avanzado' && (
-            <>
-              <div className="form-row">
+
+          {/* Filtros */}
+          <div className="filters-container">
+            <div className="filters">
+              <div className="filter-group">
                 <input 
-                  type="date" 
-                  value={nuevaTarea.due_date}
-                  onChange={(e) => setNuevaTarea({...nuevaTarea, due_date: e.target.value})}
-                  title="Fecha de vencimiento"
+                  type="text" 
+                  placeholder="Buscar tareas..."
+                  value={filtros.search}
+                  onChange={(e) => setFiltros({...filtros, search: e.target.value})}
                 />
                 <select 
-                  value={nuevaTarea.category}
-                  onChange={(e) => setNuevaTarea({...nuevaTarea, category: e.target.value})}
+                  value={filtros.priority}
+                  onChange={(e) => setFiltros({...filtros, priority: e.target.value})}
                 >
-                  <option value="principal">Principal</option>
-                  <option value="secundaria">Secundaria</option>
-                  <option value="urgente">Urgente</option>
+                  <option value="">Todas las prioridades</option>
+                  <option value="high">Alta</option>
+                  <option value="medium">Media</option>
+                  <option value="low">Baja</option>
+                </select>
+                <select 
+                  value={filtros.status}
+                  onChange={(e) => setFiltros({...filtros, status: e.target.value})}
+                >
+                  <option value="">Todos los estados</option>
+                  <option value="pending">Pendiente</option>
+                  <option value="in_progress">En Progreso</option>
+                  <option value="completed">Completada</option>
+                  <option value="cancelled">Cancelada</option>
                 </select>
               </div>
               
-              {/* Campo para asignar a otros usuarios (solo admin) */}
-              {userData.rol === 'admin' && (
-                <div className="form-row">
-                  <select 
-                    value={nuevaTarea.assigned_to || ''}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, assigned_to: e.target.value || null})}
-                  >
-                    <option value="">Asignar a mi mismo</option>
-                    {usuarios.filter(u => u.estado === 'approved').map(usuario => (
-                      <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo}</option>
-                    ))}
-                  </select>
+              {/* Filtro especial para administrador */}
+              {esAdministrador() && (
+                <div className="admin-filter">
+                  <label className="checkbox-label">
+                    <input 
+                      type="checkbox"
+                      checked={filtros.show_all}
+                      onChange={(e) => setFiltros({...filtros, show_all: e.target.checked})}
+                    />
+                    Ver todas las tareas del sistema
+                  </label>
                 </div>
               )}
-              
-              <div className="form-row">
-                <textarea 
-                  placeholder="Descripción de la tarea"
-                  value={nuevaTarea.description}
-                  onChange={(e) => setNuevaTarea({...nuevaTarea, description: e.target.value})}
-                  rows={3}
-                />
-              </div>
-            </>
-          )}
-          
-          <button type="submit" className="submit-btn">
-            Crear Tarea
-          </button>
-        </form>
-      </div>
+            </div>
+          </div>
 
-      {/* Lista de tareas */}
-      <div className="tasks-list">
-        {tareasFiltradas.length === 0 ? (
-          <p className="no-tasks">No hay tareas que coincidan con los filtros.</p>
-        ) : (
-          tareasFiltradas.map(tarea => (
-            <div key={tarea.id} className={`task-item ${tarea.status} priority-${tarea.priority}`}>
-              {editandoTarea === tarea.id ? (
-                // Formulario de edición
-                <div className="edit-form">
+            {/* Estadísticas */}
+          <div className="stats-container">
+            <div className="stats-item">
+              <h4>Total de Tareas</h4>
+              <p>{tareas.length}</p>
+            </div>
+            <div className="stats-item">
+              <h4>Completadas</h4>
+              <p>{tareas.filter(t => t.status === 'completed').length}</p>
+            </div>
+            <div className="stats-item">
+              <h4>Pendientes</h4>
+              <p>{tareas.filter(t => t.status === 'pending').length}</p>
+            </div>
+            <div className="stats-item">
+              <h4>En Progreso</h4>
+              <p>{tareas.filter(t => t.status === 'in_progress').length}</p>
+            </div>
+            <div className="stats-item">
+              <h4>Vencidas</h4>
+              <p>{tareas.filter(t => esTareaVencida(t.due_date, t.status)).length}</p>
+            </div>
+          </div>
+
+          {/* Formulario de nueva tarea */}
+          {puedeCrearTareas() && (
+            <div className="new-task-form">
+              <div className="form-header">
+                <h3>Nueva Tarea</h3>
+                <div className="form-mode-toggle">
+                  <button 
+                    className={`mode-btn ${modoCreacion === 'simple' ? 'active' : ''}`}
+                    onClick={() => setModoCreacion('simple')}
+                  >
+                    Simple
+                  </button>
+                  <button 
+                    className={`mode-btn ${modoCreacion === 'avanzado' ? 'active' : ''}`}
+                    onClick={() => setModoCreacion('avanzado')}
+                  >
+                    Avanzado
+                  </button>
+                </div>
+              </div>
+              
+              <form onSubmit={crearTarea} className="task-form">
+                <div className="form-row">
                   <input 
-                    type="text"
-                    value={tareaEditada.task}
-                    onChange={(e) => setTareaEditada({...tareaEditada, task: e.target.value})}
+                    type="text" 
+                    placeholder="Título de la tarea"
+                    value={nuevaTarea.task}
+                    onChange={(e) => setNuevaTarea({...nuevaTarea, task: e.target.value})}
+                    required
                   />
                   <select 
-                    value={tareaEditada.priority}
-                    onChange={(e) => setTareaEditada({...tareaEditada, priority: e.target.value})}
+                    value={nuevaTarea.priority}
+                    onChange={(e) => setNuevaTarea({...nuevaTarea, priority: e.target.value})}
                   >
                     <option value="high">Alta</option>
                     <option value="medium">Media</option>
                     <option value="low">Baja</option>
                   </select>
                   <select 
-                    value={tareaEditada.status}
-                    onChange={(e) => setTareaEditada({...tareaEditada, status: e.target.value})}
+                    value={nuevaTarea.status}
+                    onChange={(e) => setNuevaTarea({...nuevaTarea, status: e.target.value})}
                   >
                     <option value="pending">Pendiente</option>
                     <option value="in_progress">En Progreso</option>
                     <option value="completed">Completada</option>
                     <option value="cancelled">Cancelada</option>
                   </select>
-                  <div className="edit-actions">
-                    <button onClick={() => guardarEdicion(tarea.id)}>Guardar</button>
-                    <button onClick={cancelarEdicion}>Cancelar</button>
-                  </div>
                 </div>
-              ) : (
-                // Vista normal de tarea para usuarios
-                <>
-                  <div className="task-header">
-                    <h4 className="task-title">{tarea.task}</h4>
-                    <div className="task-badges">
-                      <span className={`priority-badge ${tarea.priority}`}>
-                        {tarea.priority === 'high' && '🔴'}
-                        {tarea.priority === 'medium' && '🟡'}
-                        {tarea.priority === 'low' && '🟢'}
-                        {tarea.priority}
-                      </span>
-                      <span className={`status-badge ${tarea.status}`}>
-                        {tarea.status === 'completed' && '✅'}
-                        {tarea.status === 'in_progress' && '🔄'}
-                        {tarea.status === 'pending' && '⏳'}
-                        {tarea.status === 'cancelled' && '❌'}
-                        {tarea.status}
-                      </span>
-
-                       <button 
-                      className="action-btn view-btn"
-                      onClick={() => verDetalleTarea(tarea.id)}
-                    >
-                      Ver
-                    </button>
-                    
-                    {/* Botones para tareas usuarios */}
-                    {(tarea.user_id === userId || userData.rol === 'user') && (
-                      <>
-                        <button 
-                          className="action-btn edit-btn"
-                          onClick={() => iniciarEdicion(tarea)}
-                        >
-                          Editar
-                        </button>
-                        <button 
-                          className="action-btn delete-btn"
-                          onClick={() => userData.rol === 'user' ? eliminarTareaUser(tarea.id) : eliminarTarea(tarea.id)}
-                        >
-                          Eliminar
-                        </button>
-                      </>
-                    )}
-
-                    </div>
-                  </div>
-
-
-                  <div className="task-info">
-                    {tarea.due_date && (
-                      <span className={`due-date ${esTareaVencida(tarea.due_date, tarea.status) ? 'overdue' : ''}`}>
-                        📅 Vence: {formatearFecha(tarea.due_date)}
-                      </span>
-                    )}
-                    
-                    <div className="task-progress">
-                      <div className="progress-bar">
-                        <div 
-                          className="progress-fill" 
-                          style={{ width: `${tarea.progress}%` }}
-                        ></div>
-                      </div>
-                      <span className="progress-text">{tarea.progress}%</span>
-                    </div>
-                    
-                    {tarea.description && (
-                      <p className="task-description">{tarea.description}</p>
-                    )}
-                    
-                    {/* Información adicional para admin -asignar tareas a usuarios*/}
-                    {userData.rol === 'admin' && filtros.show_all && (
-                      <div className="task-admin-info">
-                        <span className="assigned-user">
-                          👤 Asignado a: {obtenerNombreUsuario(tarea.user_id)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="task-actions">
-                    <button 
-                      className="action-btn view-btn"
-                      onClick={() => verDetalleTarea(tarea.id)}
-                    >
-                      👁️ Ver
-                    </button>
-                    
-                    {/* Botones para tareas propias o admin */}
-                    {(tarea.user_id === userId || userData.rol === 'admin') && (
-                      <>
-                        <button 
-                          className="action-btn edit-btn"
-                          onClick={() => iniciarEdicion(tarea)}
-                        >
-                          ✏️ Editar
-                        </button>
-                        <button 
-                          className="action-btn delete-btn"
-                          onClick={() => userData.rol === 'admin' ? eliminarTareaAdmin(tarea.id) : eliminarTarea(tarea.id)}
-                        >
-                          🗑️ Eliminar
-                        </button>
-                      </>
-                    )}
-                    
-                    {/* Botón para reasignar (solo admin) */}
-                    {userData.rol === 'admin' && (
+                
+                {modoCreacion === 'avanzado' && (
+                  <>
+                    <div className="form-row">
+                      <input 
+                        type="date" 
+                        value={nuevaTarea.due_date}
+                        onChange={(e) => setNuevaTarea({...nuevaTarea, due_date: e.target.value})}
+                        title="Fecha de vencimiento"
+                      />
                       <select 
-                        className="reassign-select"
-                        onChange={(e) => {
-                          if (e.target.value && window.confirm('¿Reasignar esta tarea?')) {
-                            reasignarTarea(tarea.id, e.target.value);
-                          }
-                          e.target.value = '';
-                        }}
+                        value={nuevaTarea.category}
+                        onChange={(e) => setNuevaTarea({...nuevaTarea, category: e.target.value})}
                       >
-                        <option value="">Reasignar a...</option>
-                        {usuarios.filter(u => u.estado === 'approved' && u.id !== tarea.user_id).map(usuario => (
-                          <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo}</option>
-                        ))}
+                        <option value="principal">Principal</option>
+                        <option value="secundaria">Secundaria</option>
+                        <option value="urgente">Urgente</option>
                       </select>
+                    </div>
+                    
+                    {/* Campo para asignar a otros usuarios (solo admin) */}
+                    {esAdministrador() && (
+                      <div className="form-row">
+                        <select 
+                          value={nuevaTarea.assigned_to || ''}
+                          onChange={(e) => setNuevaTarea({...nuevaTarea, assigned_to: e.target.value || null})}
+                        >
+                          <option value="">Asignar a mi mismo</option>
+                          {usuarios.filter(u => u.rol !== 'pendiente').map(usuario => (
+                            <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo}</option>
+                          ))}
+                        </select>
+                      </div>
                     )}
-                  </div>
-                </>
-              )}
+                    
+                    <div className="form-row">
+                      <textarea 
+                        placeholder="Descripción de la tarea"
+                        value={nuevaTarea.description}
+                        onChange={(e) => setNuevaTarea({...nuevaTarea, description: e.target.value})}
+                        rows={3}
+                      />
+                    </div>
+                  </>
+                )}
+                
+                
+                <button type="submit" className="submit-btn">
+                  Crear Tarea
+                </button>
+              </form>
             </div>
-          ))
+          )}
+        </div>
+
+
+        {/* Columna derecha - Lista de tareas */}
+        <div className="right-column">
+          <div className="tasks-list">
+            {tareasFiltradas.length === 0 ? (
+              <p className="no-tasks">No hay tareas que coincidan con los filtros.</p>
+            ) : (
+              tareasFiltradas.map(tarea => (
+                <div key={tarea.id} className={`task-item ${tarea.status} priority-${tarea.priority}`}>
+                  {editandoTarea === tarea.id ? (
+                    // Formulario de edición
+                    <div className="edit-form">
+                      <input 
+                        type="text"
+                        value={tareaEditada.task}
+                        onChange={(e) => setTareaEditada({...tareaEditada, task: e.target.value})}
+                      />
+                      <select 
+                        value={tareaEditada.priority}
+                        onChange={(e) => setTareaEditada({...tareaEditada, priority: e.target.value})}
+                      >
+                        <option value="high">Alta</option>
+                        <option value="medium">Media</option>
+                        <option value="low">Baja</option>
+                      </select>
+                      <select 
+                        value={tareaEditada.status}
+                        onChange={(e) => setTareaEditada({...tareaEditada, status: e.target.value})}
+                      >
+                        <option value="pending">Pendiente</option>
+                        <option value="in_progress">En Progreso</option>
+                        <option value="completed">Completada</option>
+                        <option value="cancelled">Cancelada</option>
+                      </select>
+                      <div className="edit-actions">
+                        <button onClick={() => guardarEdicion(tarea.id)}>Guardar</button>
+                        <button onClick={cancelarEdicion}>Cancelar</button>
+                      </div>
+                    </div>
+                  ) : (
+                    // Vista normal de tarea
+                    <>
+                      <div className="task-header">
+                        <h4 className="task-title">{tarea.task}</h4>
+                        <div className="task-badges">
+                          <span className={`priority-badge ${tarea.priority}`}>
+                            {tarea.priority === 'high' && '🔴'}
+                            {tarea.priority === 'medium' && '🟡'}
+                            {tarea.priority === 'low' && '🟢'}
+                            {tarea.priority}
+                          </span>
+                          <span className={`status-badge ${tarea.status}`}>
+                            {tarea.status === 'completed' && '✅'}
+                            {tarea.status === 'in_progress' && '🔄'}
+                            {tarea.status === 'pending' && '⏳'}
+                            {tarea.status === 'cancelled' && '❌'}
+                            {tarea.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="task-info">
+                        {tarea.due_date && (
+                          <span className={`due-date ${esTareaVencida(tarea.due_date, tarea.status) ? 'overdue' : ''}`}>
+                            📅 Vence: {formatearFecha(tarea.due_date)}
+                          </span>
+                        )}
+                        
+                        {tarea.description && (
+                          <p className="task-description">{tarea.description}</p>
+                        )}
+                        
+                        {/* Información adicional para admin */}
+                        {esAdministrador() && filtros.show_all && (
+                          <div className="task-admin-info">
+                            <span className="assigned-user">
+                              👤 Asignado a: {obtenerNombreUsuario(tarea.user_id)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="task-actions">
+                        <button 
+                          className="action-btn view-btn"
+                          onClick={() => verDetalleTarea(tarea.id)}
+                        >
+                          Ver
+                        </button>
+                        
+                        {/* Botones para tareas propias o usuarios con permisos */}
+                        {(tarea.user_id === userId || puedeEditarTareas()) && (
+                          <>
+                            <button 
+                              className="action-btn edit-btn"
+                              onClick={() => iniciarEdicion(tarea)}
+                            >
+                            Editar
+                            </button>
+                            <button 
+                              className="action-btn delete-btn"
+                              onClick={() => esAdministrador() ? eliminarTareaAdmin(tarea.id) : eliminarTarea(tarea.id)}
+                            >
+                            Eliminar
+                            </button>
+                          </>
+                        )}
+                        
+                        {/* Botón para reasignar (solo admin) */}
+                        {esAdministrador() && (
+                          <select 
+                            className="reassign-select"
+                            onChange={(e) => {
+                              if (e.target.value && window.confirm('¿Reasignar esta tarea?')) {
+                                reasignarTarea(tarea.id, e.target.value);
+                              }
+                              e.target.value = '';
+                            }}
+                          >
+                            <option value="">Reasignar a...</option>
+                            {usuarios.filter(u => u.rol !== 'pendiente' && u.id !== tarea.user_id).map(usuario => (
+                              <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+          </>
         )}
       </div>
 
