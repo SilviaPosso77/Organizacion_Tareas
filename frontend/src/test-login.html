@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Login Toggle</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #121212;
+            color: white;
+            padding: 20px;
+        }
+        .test-container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: white;
+            border-radius: 5px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        a {
+            color: #4CAF50;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .hidden {
+            display: none;
+        }
+        .status {
+            background: #333;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h2 id="title">Ingresar</h2>
+        
+        <div class="status">
+            Estado actual: <span id="status">Login</span>
+        </div>
+        
+        <form id="loginForm">
+            <input type="text" placeholder="Documento de identidad" required>
+            
+            <!-- Campos de registro (ocultos inicialmente) -->
+            <div id="registerFields" class="hidden">
+                <input type="email" placeholder="Correo electrónico" required>
+                <input type="text" placeholder="Nombres y apellidos" required>
+            </div>
+            
+            <input type="date" placeholder="Fecha de nacimiento" required>
+            
+            <button type="submit" id="submitBtn">INGRESAR</button>
+        </form>
+        
+        <div>
+            <span id="toggleText">¿AÚN NO HACES PARTE?</span>
+            <a href="#" id="toggleLink">REGÍSTRATE</a>
+        </div>
+        
+        <div class="status">
+            <strong>Log de eventos:</strong>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let isRegister = false;
+        
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML += '<br>' + new Date().toLocaleTimeString() + ': ' + message;
+        }
+        
+        function updateUI() {
+            const title = document.getElementById('title');
+            const status = document.getElementById('status');
+            const registerFields = document.getElementById('registerFields');
+            const submitBtn = document.getElementById('submitBtn');
+            const toggleText = document.getElementById('toggleText');
+            const toggleLink = document.getElementById('toggleLink');
+            
+            if (isRegister) {
+                title.textContent = 'Registrarse';
+                status.textContent = 'Registro';
+                registerFields.classList.remove('hidden');
+                submitBtn.textContent = 'REGISTRARSE';
+                toggleText.textContent = '¿Ya tienes cuenta?';
+                toggleLink.textContent = 'INICIAR SESIÓN';
+            } else {
+                title.textContent = 'Ingresar';
+                status.textContent = 'Login';
+                registerFields.classList.add('hidden');
+                submitBtn.textContent = 'INGRESAR';
+                toggleText.textContent = '¿AÚN NO HACES PARTE?';
+                toggleLink.textContent = 'REGÍSTRATE';
+            }
+            
+            log('UI actualizada - isRegister: ' + isRegister);
+        }
+        
+        function toggleMode(e) {
+            e.preventDefault();
+            log('Toggle ejecutado - antes: ' + isRegister);
+            isRegister = !isRegister;
+            log('Toggle ejecutado - después: ' + isRegister);
+            updateUI();
+        }
+        
+        // Event listeners
+        document.getElementById('toggleLink').addEventListener('click', toggleMode);
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            log('Formulario enviado en modo: ' + (isRegister ? 'Registro' : 'Login'));
+        });
+        
+        // Inicializar
+        log('Página cargada');
+        updateUI();
+    </script>
+</body>
+</html>

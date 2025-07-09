@@ -17,7 +17,7 @@ from .serializers import (
 
 # Función de validación
 def validar_fecha_nacimiento(fecha):
-    """Valida que la fecha de nacimiento sea válida y anterior a hoy"""
+    """Valida que la fecha de nacimiento sea válida anterior al día de hoy"""
     try:
         if isinstance(fecha, str):
             fecha_obj = datetime.strptime(fecha, '%Y-%m-%d').date()
@@ -33,6 +33,7 @@ def validar_fecha_nacimiento(fecha):
 
 def validar_cedula_colombiana(cedula):
     """Valida que la cédula sea un formato válido colombiano"""
+
     # Remover espacios y caracteres no numéricos
     cedula_limpia = ''.join(filter(str.isdigit, str(cedula)))
     
@@ -99,7 +100,7 @@ class RegisterAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Validar documento único
+        # Validacion para que el documento de identidad sea único y válido
         if Login.objects.filter(documento_identidad=documento_identidad).exists():
             return Response(
                 {'error': 'Ya existe un usuario con este documento de identidad'},
@@ -137,6 +138,112 @@ class RegisterAPIView(APIView):
                 'email': nuevo_usuario.email,
                 'rol': nuevo_usuario.rol,
                 'message': 'Usuario registrado exitosamente'
+            }, status=status.HTTP_201_CREATED)
+        
+        except Exception as e:
+            return Response(
+                {'error': f'Error al crear usuario: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+# Me permite que el administrador cree usuarios directamente desde la API, y el Panel de administrador
+
+class AdminCreateUserAPIView(APIView):
+    """API View para que administradores creen usuarios directamente"""
+    def post(self, request):
+        # Verificar que quien hace la solicitud es admin
+        admin_user_id = request.data.get('admin_user_id')
+        
+        try:
+            admin_user = Login.objects.get(id=admin_user_id)
+            if admin_user.rol != 'admin':
+                return Response(
+                    {'error': 'Solo los administradores pueden crear usuarios'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        except Login.DoesNotExist:
+            return Response(
+                {'error': 'Administrador no encontrado'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Obtener datos del nuevo usuario
+        documento_identidad = request.data.get('documento_identidad')
+        fecha_nacimiento = request.data.get('fecha_nacimiento')
+        nombre_completo = request.data.get('nombre_completo')
+        email = request.data.get('email')
+        rol = request.data.get('rol', 'user')  # Rol por defecto
+        
+        # Validaciones
+        if not documento_identidad or not fecha_nacimiento or not nombre_completo:
+            return Response(
+                {'error': 'Documento de identidad, fecha de nacimiento y nombre completo son requeridos'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validar cédula colombiana
+        es_valida_cedula, cedula_limpia = validar_cedula_colombiana(documento_identidad)
+        if not es_valida_cedula:
+            return Response(
+                {'error': cedula_limpia},  # cedula_limpia contiene el mensaje de error
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validar documento único
+        if Login.objects.filter(documento_identidad=cedula_limpia).exists():
+            return Response(
+                {'error': 'Ya existe un usuario con este documento de identidad'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validar email único si se proporciona
+        if email and Login.objects.filter(email=email).exists():
+            return Response(
+                {'error': 'Ya existe un usuario con este email'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validar fecha de nacimiento
+        es_valida_fecha, fecha_resultado = validar_fecha_nacimiento(fecha_nacimiento)
+        if not es_valida_fecha:
+            return Response(
+                {'error': fecha_resultado},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validar rol
+        roles_validos = ['user', 'admin', 'usuario', 'dev', 'dev_flask', 'dev_django']
+        if rol not in roles_validos:
+            return Response(
+                {'error': f'Rol no válido. Roles permitidos: {", ".join(roles_validos)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Crear el nuevo usuario
+            nuevo_usuario = Login.objects.create(
+                documento_identidad=cedula_limpia,
+                fecha_nacimiento=fecha_resultado,
+                nombre_completo=nombre_completo,
+                email=email if email else None,
+                rol=rol,
+                is_active=True  # Los usuarios creados por admin están activos por defecto
+            )
+            
+            # Log de la acción del admin
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Admin {admin_user.nombre_completo} (ID: {admin_user.id}) creó usuario {nuevo_usuario.nombre_completo} (ID: {nuevo_usuario.id}) con rol {rol}")
+            
+            return Response({
+                'success': True,
+                'user_id': nuevo_usuario.id,
+                'documento_identidad': nuevo_usuario.documento_identidad,
+                'nombre_completo': nuevo_usuario.nombre_completo,
+                'email': nuevo_usuario.email,
+                'rol': nuevo_usuario.rol,
+                'is_active': nuevo_usuario.is_active,
+                'created_at': nuevo_usuario.created_at,
+                'message': f'Usuario "{nombre_completo}" creado exitosamente con rol "{rol}"'
             }, status=status.HTTP_201_CREATED)
         
         except Exception as e:

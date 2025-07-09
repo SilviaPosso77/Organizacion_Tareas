@@ -642,11 +642,12 @@ h3 {
   padding: 0.3rem 0.7rem;
   border-radius: 6px;
   background: #1a1a1a;
+  color: #007bff;
 }
 
 .due-date.overdue {
-  background: #f1eded;
-  color: white;
+  background: #f90404;
+  color: rgb(12, 1, 1);
 }
 
 .overdue-label {
@@ -1170,6 +1171,158 @@ h3 {
   border-bottom: 1px solid #e0e0e0;
 }
 
+/* ===== ESTILOS PARA FORMULARIO DE CREAR USUARIO ===== */
+
+
+/* ===== ESTILOS PARA FORMULARIO DE CREAR USUARIO ===== */
+.create-user-header {
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.create-user-toggle-btn {
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.create-user-toggle-btn:hover {
+  background: linear-gradient(135deg, #45a049, #4CAF50);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.create-user-form-container {
+  background: rgba(76, 175, 80, 0.1);
+  border: 2px solid #338410;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 15px 0;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.create-user-form-container h5 {
+  margin: 0 0 15px 0;
+  color: #4CAF50;
+  text-align: center;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.create-user-form .form-row {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 15px;
+  align-items: center;
+}
+
+.create-user-form .form-row input,
+.create-user-form .form-row select {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #4CAF50;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.create-user-form .form-row input:focus,
+.create-user-form .form-row select:focus {
+  outline: none;
+  border-color: #66BB6A;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.create-user-form .form-row input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.create-user-submit-btn {
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  min-width: 140px;
+}
+
+.create-user-submit-btn:hover {
+  background: linear-gradient(135deg, #45a049, #4CAF50);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+}
+
+.create-user-submit-btn:active {
+  transform: translateY(0);
+}
+
+/* Responsive para formulario de crear usuario */
+@media (max-width: 768px) {
+  .create-user-form .form-row {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .create-user-submit-btn {
+    width: 100%;
+  }
+}
+
+/* Dark theme adjustments para el formulario */
+body.dark-theme .create-user-form .form-row input,
+body.dark-theme .create-user-form .form-row select {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border-color: #4CAF50;
+}
+
+/* Light theme adjustments para el formulario */
+body.light-theme .create-user-form-container {
+  background: rgba(76, 175, 80, 0.05);
+  color: #333;
+}
+
+body.light-theme .create-user-form .form-row input,
+body.light-theme .create-user-form .form-row select {
+  background: white;
+  color: #333;
+  border-color: #4CAF50;
+}
+
+body.light-theme .create-user-form .form-row input::placeholder {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+body.light-theme .create-user-form-container h5 {
+  color: #2E7D32;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .task-manager {
@@ -1463,14 +1616,14 @@ html, body {
   padding: 2px 4px;
 }*/
 
-/* Pantalla de Registro  - Centrada con fondo adaptable */
+/* Pantalla de Registro  - Centrada con fondo adaptable cuando el usuario espera que se lo acepten */ 
 .pending-approval-screen {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: #aa2b2b; /* Por defecto tema oscuro */
+  background-color: #080000; /* Por defecto tema oscuro */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1558,20 +1711,20 @@ html, body {
 }
 
 .light-theme .pending-approval-screen .logout-btn {
-  background-color: #dc3545;
+  background-color: #000000;
   color: white;
 }
 
 .light-theme .pending-approval-screen .logout-btn:hover {
-  background-color: #c82333;
+  background-color: #050505;
 }
 
 
-  /* Hacer más pequeño el ThemeToggle en pending-approval */
+  /* Hacer más pequeño el ThemeToggle en pending-approval 
   .padding: 3px 3px;{
   font-size: 12px;
   transform: scale(0.8);
-} 
+} */
 
 .pending-approval-screen .theme-toggle .theme-text {
   font-size: 11px;

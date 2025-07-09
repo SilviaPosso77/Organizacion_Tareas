@@ -4,7 +4,7 @@ from django.contrib import admin
 from .views import (
     LoginViewSet, TaskViewSet, UserViewSet, TaskDetailsViewSet, 
     CollaboratorViewSet, NotificationViewSet, ReportViewSet, 
-    RegisterAPIView, LoginAPIView, TeamViewSet, CalendarViewSet,
+    RegisterAPIView, LoginAPIView, AdminCreateUserAPIView, TeamViewSet, CalendarViewSet,
     TaskCommentViewSet, TaskHistoryViewSet
 )
 
@@ -28,4 +28,7 @@ urlpatterns = [
     # Autenticación
     path('auth/login/', LoginAPIView.as_view(), name='login'),
     path('auth/register/', RegisterAPIView.as_view(), name='register'),
+    
+    # Admin - Crear usuarios
+    path('admin/create-user/', AdminCreateUserAPIView.as_view(), name='admin-create-user'),
 ]

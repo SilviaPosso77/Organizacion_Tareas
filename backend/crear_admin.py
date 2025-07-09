@@ -27,9 +27,9 @@ def crear_admin():
         
         # Crear nuevo administrador
         nuevo_admin = Login.objects.create(
-            documento_identidad='admin123',
+            documento_identidad='Admin7780',
             nombre_completo='Administrador del Sistema',
-            email='admin@sistema.com',
+            email='admin@sistemascensa.com',
             fecha_nacimiento=date(1990, 1, 1),
             rol='admin',  # Usar 'admin' que está en las opciones del modelo
             is_active=True
@@ -41,7 +41,7 @@ def crear_admin():
         print(f"🔑 Rol: {nuevo_admin.rol}")
         print(f"📅 Fecha de nacimiento: {nuevo_admin.fecha_nacimiento}")
         print("\n🚀 Ahora puedes iniciar sesión con:")
-        print("   Documento: admin123")
+        print("   Documento: Admin7780")
         print("   Fecha de nacimiento: 1990-01-01")
         
     except Exception as e:

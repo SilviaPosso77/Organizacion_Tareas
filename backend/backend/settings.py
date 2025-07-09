@@ -34,13 +34,13 @@ INSTALLED_APPS = [
     'corsheaders',  # CORS headers for cross-origin requests
     'django.contrib.admin',
     'django.contrib.auth',
-    'django.contrib.contenttypes',
+    'django.contrib.contenttypes',  
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',  # Django REST Framework
     'rest_framework_simplejwt',  # JWT Authentication
-    'organizacion_tareas',  # Your app name
+    'organizacion_tareas',  # Nombre del proyecto.
 ]
 
 MIDDLEWARE = [
@@ -80,8 +80,8 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'organizacion_tareas',  
-        'USER': 'postgres',  # Corregido: debe ser 'postgres'
-        'PASSWORD': '1037778057', 
+        'USER': 'postgres',  # Corregido: debería ser 'postgres'
+        'PASSWORD': 'Junior', #corregí la contraseña  antes: 1037778057
         'HOST': 'localhost',
         'PORT': '5432',  
     }
@@ -147,3 +147,43 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+
+# Configuración de email
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'  # Para Gmail
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'tu_email_real@gmail.com'  # CAMBIAR: Tu email real de Gmail
+EMAIL_HOST_PASSWORD = 'tu_contraseña_de_aplicacion_real'  # CAMBIAR: Tu contraseña de aplicación de Gmail
+DEFAULT_FROM_EMAIL = 'tu_email_real@gmail.com'  # CAMBIAR: Tu email real
+
+# Configuración de logging para emails
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': 'email_logs.log',
+        },
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'organizacion_tareas.email_utils': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'organizacion_tareas.models': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}
+
+

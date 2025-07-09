@@ -6,7 +6,7 @@ import './TaskManager.css';
 
 // Este es el estado de las tareas categorizadas
 const TaskManager = ({ userId, userData, onLogout, isDarkMode, toggleTheme }) => {
-  // Estados principales
+  // Estados principales para asignar tareas a los usuarios
   const [tareas, setTareas] = useState([]);
   const [nuevaTarea, setNuevaTarea] = useState({
     task: '',
@@ -62,6 +62,14 @@ const [availableRoles] = useState([
   const [usuarios, setUsuarios] = useState([]);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [estadisticasGenerales, setEstadisticasGenerales] = useState({});
+  const [showCreateUserForm, setShowCreateUserForm] = useState(false);
+  const [nuevoUsuario, setNuevoUsuario] = useState({
+    documento_identidad: '',
+    fecha_nacimiento: '',
+    nombre_completo: '',
+    email: '',
+    rol: 'usuario'
+  });
 
   // URLs de API
   const API_URL = 'http://127.0.0.1:8000/api/task/';
@@ -395,9 +403,6 @@ const handleRoleChange = async (selectedRole) => {
     }
   };
 
-
-
-
   const reasignarTarea = async (tareaId, nuevoUsuarioId) => {
     if (!esAdministrador()) {
       alert('No tienes permisos para reasignar tareas');
@@ -405,14 +410,25 @@ const handleRoleChange = async (selectedRole) => {
     }
 
     try {
-      await axios.put(`${API_URL}${tareaId}/`, {
-        user_id: nuevoUsuarioId
-      });
+      // 1. Obtener la tarea actual completa
+      const tareaResponse = await axios.get(`${API_URL}${tareaId}/`);
+      const tareaCompleta = tareaResponse.data;
       
+      // 2. Actualizar solo el user_id
+      const tareaActualizada = {
+        ...tareaCompleta,
+        user_id: nuevoUsuarioId
+      };
+      
+      // 3. Enviar la tarea completa actualizada
+      await axios.put(`${API_URL}${tareaId}/`, tareaActualizada);
+      
+      //Asignar tareas a los usuarios -Response.
       alert('Tarea reasignada exitosamente');
       obtenerTareas();
     } catch (error) {
       console.error('Error al reasignar tarea:', error);
+      console.error('Detalles del error:', error.response?.data);
       alert('Error al reasignar la tarea');
     }
   };
@@ -424,6 +440,11 @@ const handleRoleChange = async (selectedRole) => {
     }
 
     try {
+
+
+
+
+
       // Obtener información actual del usuario
       const usuarioActual = usuarios.find(u => u.id === usuarioId);
       
@@ -514,6 +535,48 @@ const handleRoleChange = async (selectedRole) => {
       alert(mensajeError);
     }
   };
+
+  const crearUsuario = async (e) => {
+    e.preventDefault();
+    
+    if (!esAdministrador()) {
+      alert('No tienes permisos para crear usuarios');
+      return;
+    }
+    
+    // Validaciones
+    if (!nuevoUsuario.documento_identidad || !nuevoUsuario.fecha_nacimiento || !nuevoUsuario.nombre_completo) {
+      alert('Documento, fecha de nacimiento y nombre completo son requeridos');
+      return;
+    }
+    
+    try {
+      const response = await axios.post('http://127.0.0.1:8000/api/admin/create-user/', {
+        ...nuevoUsuario,
+        admin_user_id: userData.user_id
+      });
+      
+      alert(response.data.message);
+      
+      // Resetear formulario
+      setNuevoUsuario({
+        documento_identidad: '',
+        fecha_nacimiento: '',
+        nombre_completo: '',
+        email: '',
+        rol: 'usuario'
+      });
+      
+      setShowCreateUserForm(false);
+      obtenerUsuarios(); // Actualizar lista de usuarios
+      
+    } catch (error) {
+      console.error('Error al crear usuario:', error);
+      const errorMessage = error.response?.data?.error || 'Error al crear el usuario';
+      alert(errorMessage);
+    }
+  };
+
 
   const verDetalleTarea = async (id) => {
     try {
@@ -859,6 +922,75 @@ const handleRoleChange = async (selectedRole) => {
             {/* Gestión de Usuarios */}
             <div className="admin-users">
               <h4>Gestión de Usuarios</h4>
+              
+              {/* Botón para mostrar/ocultar formulario de crear usuario */}
+              <div className="create-user-header">
+                <button 
+                  className="create-user-toggle-btn"
+                  onClick={() => setShowCreateUserForm(!showCreateUserForm)}
+                >
+                  {showCreateUserForm ? '❌ Cancelar' : '➕ Crear Nuevo Usuario'}
+                </button>
+              </div>
+
+              {/* Formulario para crear nuevos usuarios */}
+              {showCreateUserForm && (
+                <div className="create-user-form-container">
+                  <h5>Crear Nuevo Usuario</h5>
+                  <form onSubmit={crearUsuario} className="create-user-form">
+                    <div className="form-row">
+                      <input
+                        type="text"
+                        placeholder="Documento de identidad *"
+                        value={nuevoUsuario.documento_identidad}
+                        onChange={(e) => setNuevoUsuario({...nuevoUsuario, documento_identidad: e.target.value})}
+                        required
+                      />
+                      <input
+                        type="text"
+                        placeholder="Nombre completo *"
+                        value={nuevoUsuario.nombre_completo}
+                        onChange={(e) => setNuevoUsuario({...nuevoUsuario, nombre_completo: e.target.value})}
+                        required
+                      />
+                    </div>
+                    
+                    <div className="form-row">
+                      <input
+                        type="date"
+                        placeholder="Fecha de nacimiento *"
+                        value={nuevoUsuario.fecha_nacimiento}
+                        onChange={(e) => setNuevoUsuario({...nuevoUsuario, fecha_nacimiento: e.target.value})}
+                        required
+                      />
+                      <input
+                        type="email"
+                        placeholder="Correo electrónico (opcional)"
+                        value={nuevoUsuario.email}
+                        onChange={(e) => setNuevoUsuario({...nuevoUsuario, email: e.target.value})}
+                      />
+                    </div>
+                    
+                    <div className="form-row">
+                      <select
+                        value={nuevoUsuario.rol}
+                        onChange={(e) => setNuevoUsuario({...nuevoUsuario, rol: e.target.value})}
+                        required
+                      >
+                        <option value="usuario">Usuario</option>
+                        <option value="dev">Desarrolladora</option>
+                        <option value="dev_flask">Desarrolladora Flask</option>
+                        <option value="dev_django">Desarrolladora Django</option>
+                        <option value="admin">Administrador</option>
+                      </select>
+                      <button type="submit" className="create-user-submit-btn">
+                        ✅ Crear Usuario
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+              
               <div className="users-list">
                 {usuarios.map(usuario => (
                   <div key={usuario.id} className="user-item grid-compact">
@@ -937,9 +1069,12 @@ const handleRoleChange = async (selectedRole) => {
                 )}
               </div>
             </div>
+
+      
           </div>
         ) : (
           <>
+          
             {/* Columna izquierda - Controles */}
             <div className="left-column">
 
@@ -1025,13 +1160,13 @@ const handleRoleChange = async (selectedRole) => {
                     className={`mode-btn ${modoCreacion === 'simple' ? 'active' : ''}`}
                     onClick={() => setModoCreacion('simple')}
                   >
-                    Simple
-                  </button>
+                    Crear tareas
+                  </button> 
                   <button 
                     className={`mode-btn ${modoCreacion === 'avanzado' ? 'active' : ''}`}
                     onClick={() => setModoCreacion('avanzado')}
                   >
-                    Avanzado
+                    Asignar tareas
                   </button>
                 </div>
               </div>

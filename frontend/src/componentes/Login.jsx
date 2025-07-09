@@ -10,11 +10,13 @@ const Login = ({ onClose }) => {
   const [mensaje, setMensaje] = useState('');
   const [isRegister, setIsRegister] = useState(false);
   const [rol, setRol] = useState('');
+  const [gmail, setGmail] = useState('');
 
   const handleSubmit = async (e) => {
   e.preventDefault();
   
   console.log('=== DATOS DEL FORMULARIO ===');
+  console.log('Correo:', gmail)
   console.log('Documento:', documento);
   console.log('Fecha:', fecha);
   console.log('Nombre:', name);
@@ -36,6 +38,7 @@ const Login = ({ onClose }) => {
     // Solo agregar el nombre si es registro
     if (isRegister) {
       data.nombre_completo = name;
+      data.email = gmail;
       data.rol = 'pendiente'; // Rol por defecto hasta que el admin lo asigne
     }
     
@@ -48,8 +51,14 @@ const Login = ({ onClose }) => {
     if (isRegister) {
       setMensaje('¡Usuario registrado exitosamente!');
       setTimeout(() => {
-        setIsRegister(false);
+        setIsRegister(false);  // Cambiar a modo login tras registro exitoso
         setMensaje('');
+        setDocumento('');
+        setFecha('');
+        setName('');
+        setGmail(''); // Resetear el campo email
+
+
       }, 2000);
     } else {
       setMensaje('¡Inicio de sesión exitoso!');
@@ -78,13 +87,14 @@ const Login = ({ onClose }) => {
   }
 };
     
-  const toggleMode = () => {
+  const toggleMode = (e) => {
+    e.preventDefault(); // Prevenir el comportamiento por defecto del enlace
     setIsRegister(!isRegister);
     setMensaje('');
     setDocumento('');
     setFecha('');
     setName('');
-    // No necesitamos resetear rol porque ya no se usa en registro
+    setGmail('');
   };
 
   return (
@@ -109,6 +119,20 @@ const Login = ({ onClose }) => {
             onChange={(e) => setDocumento(e.target.value)}
             required
           />
+
+          {/* Campo para correo electronico */}
+          {/* Campo para gmail solo en registro */}
+          {isRegister && (
+            <>
+              <input
+                type="email"
+                placeholder="Correo electrónico"
+                value={gmail}
+                onChange={(e) => setGmail(e.target.value)}
+                required
+              />
+            </>
+          )}
           {/* Campo para nombres y apellidos - solo en registro */}
           {isRegister && (
             <>
@@ -130,8 +154,6 @@ const Login = ({ onClose }) => {
             onChange={(e) => setFecha(e.target.value)}
             required
           />
-
-
           {/* Campo para contraseña */}
 
           

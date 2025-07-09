@@ -10,7 +10,7 @@ class Login(models.Model):
     ROL_CHOICES = [
         ('user', 'Usuario'),
         ('admin', 'Administrador'),
-        ('manager', 'Gerente'),
+        ('manager', ''),#Antes tenía gerente en manager- 
     ]
     
     id = models.SmallAutoField(primary_key=True)
