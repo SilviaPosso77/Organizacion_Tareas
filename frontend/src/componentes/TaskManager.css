@@ -113,6 +113,44 @@ h3 {
   border: 1px solid #f1e5e5;
   color: #f0eff1;
 }
+
+/* Tema claro para el ID de la tarea */
+.light-theme .task-id {
+  background-color: #007bff;
+  color: white;
+}
+
+/* Colores específicos por rol para el tema claro */
+.light-theme .task-id[data-rol="ADMIN"] {
+  background-color: #dc3545;
+  color: white;
+}
+
+.light-theme .task-id[data-rol="DEV"] {
+  background-color: #28a745;
+  color: white;
+}
+
+.light-theme .task-id[data-rol="DEV_FLASK"] {
+  background-color: #fd7e14;
+  color: white;
+}
+
+.light-theme .task-id[data-rol="DEV_DJANGO"] {
+  background-color: #6f42c1;
+  color: white;
+}
+
+.light-theme .task-id[data-rol="USUARIO"] {
+  background-color: #007bff;
+  color: white;
+}
+
+.light-theme .task-id[data-rol="SIN_ROL"] {
+  background-color: #6c757d;
+  color: white;
+}
+
 /* Tema claro para TaskManager DE NUEVA TAREA -OK*/
 .light-theme .new-task-form {
   background-color: #cecccc;
@@ -597,6 +635,56 @@ h3 {
   align-items: flex-start;
   flex-wrap: wrap;
   gap: 1rem;
+}
+
+.task-title-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 300px;
+}
+
+.task-id {
+  background-color: #2196F3;
+  color: white;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  min-width: fit-content;
+  flex-shrink: 0;
+}
+
+/* Colores específicos por rol para los IDs */
+.task-id[data-rol="ADMIN"] {
+  background-color: #ff4444;
+  color: white;
+}
+
+.task-id[data-rol="DEV"] {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.task-id[data-rol="DEV_FLASK"] {
+  background-color: #FF9800;
+  color: white;
+}
+
+.task-id[data-rol="DEV_DJANGO"] {
+  background-color: #8BC34A;
+  color: white;
+}
+
+.task-id[data-rol="USUARIO"] {
+  background-color: #2196F3;
+  color: white;
+}
+
+.task-id[data-rol="SIN_ROL"] {
+  background-color: #9E9E9E;
+  color: white;
 }
 
 .task-title-section {

@@ -3,15 +3,11 @@ import axios from 'axios';
 import ThemeToggle from './ThemeToggle';
 import './TaskManager.css';
 
-
 // Este es el estado de las tareas categorizadas
 const TaskManager = ({ userId, userData, onLogout, isDarkMode, toggleTheme }) => {
   // Estados principales para asignar tareas a los usuarios
   const [tareas, setTareas] = useState([]);
-  
-  // ✅ NUEVO: Estado para indicador de carga - Implementa característica requerida
   const [cargandoTareas, setCargandoTareas] = useState(false);
-  
   const [nuevaTarea, setNuevaTarea] = useState({
     task: '',
     priority: 'medium',
@@ -28,18 +24,22 @@ const TaskManager = ({ userId, userData, onLogout, isDarkMode, toggleTheme }) =>
     team: null,
     assigned_to: null
   });
-
-const [showRoleSelector, setShowRoleSelector] = useState(false);
-const [availableRoles] = useState([
-  'usuario',
-  'dev',
-  'admin',
-  'dev_flask',
-  'dev_django'
-]);
-
-
-
+  const [mostrarFormularioSubtarea, setMostrarFormularioSubtarea] = useState(null); // ID de la tarea principal para el formulario de subtareas
+  const [nuevaSubtarea, setNuevaSubtarea] = useState({
+    task: '',
+    priority: 'medium',
+    status: 'pending',
+    due_date: '',
+    description: '',
+    start_date: '',
+    progress: 0,
+    estimated_hours: '',
+    actual_hours: '',
+    tags: '',
+    team: null
+  });
+  const [showRoleSelector, setShowRoleSelector] = useState(false);
+  const [availableRoles] = useState(['usuario', 'dev', 'admin', 'dev_flask', 'dev_django']);
   const [editandoTarea, setEditandoTarea] = useState(null);
   const [tareaEditada, setTareaEditada] = useState({});
   const [filtros, setFiltros] = useState({
@@ -61,8 +61,6 @@ const [availableRoles] = useState([
   const [comentarios, setComentarios] = useState({});
   const [nuevoComentario, setNuevoComentario] = useState('');
   const [tareaSeleccionada, setTareaSeleccionada] = useState(null);
-  
-  // Estados específicos para admin
   const [usuarios, setUsuarios] = useState([]);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [estadisticasGenerales, setEstadisticasGenerales] = useState({});
@@ -81,61 +79,275 @@ const [availableRoles] = useState([
   const NOTIFICATION_API_URL = 'http://127.0.0.1:8000/api/notification/';
   const COMMENT_API_URL = 'http://127.0.0.1:8000/api/comment/';
 
-  // Funciones auxiliares para verificar las tareas-----
-  
-  // ✅ NUEVA FUNCIÓN: Procesar jerarquía de tareas para mostrar indentación
-  const procesarJerarquiaTareas = (tareasRaw) => {
-   
+  // Funciones auxiliares
+  const generarIdPorRol = (tareas, rol) => {
+    const tareasPorRol = tareas.filter(t => {
+      const usuario = usuarios.find(u => u.id === t.user_id);
+      return usuario && usuario.rol === rol;
+    });
     
-    // Crear mapa de tareas para búsqueda rápida
-    const mapaDeTareas = {};
+    // Reorganizar IDs secuencialmente
+    const idsUsados = tareasPorRol.map((_, index) => index + 1);
+    return Math.max(...idsUsados, 0) + 1;
+  };
+
+  const asignarIdsPorRol = (tareasRaw) => {
+    if (!usuarios || usuarios.length === 0) {
+      // Si no hay usuarios cargados, usar IDs simpless
+      return tareasRaw.map((tarea, index) => ({
+        ...tarea,
+        idPorRol: ` ${String(index + 1).padStart(3, '')}`,
+        numeroSecuencial: index + 1
+      }));
+    }
+
+    const tareasPorRol = {};
+    
+    // Agrupar tareas por rol del usuario asignado
     tareasRaw.forEach(tarea => {
+      const usuario = usuarios.find(u => u.id === tarea.user_id);
+      const rol = usuario ? usuario.rol : 'sin_rol';
+      
+      if (!tareasPorRol[rol]) {
+        tareasPorRol[rol] = [];
+      }
+      tareasPorRol[rol].push(tarea);
+    });
+    
+    // Asignar IDs secuenciales por rol
+    const tareasConIdPorRol = [];
+    Object.keys(tareasPorRol).forEach(rol => {
+      tareasPorRol[rol].forEach((tarea, index) => {
+        const idPorRol = String(index + 1).padStart(3, '0');
+        tareasConIdPorRol.push({
+          ...tarea,
+          idPorRol: `${rol.toUpperCase()}-${idPorRol}`,
+          numeroSecuencial: index + 1
+        });
+      });
+    });
+    
+    return tareasConIdPorRol;
+  };
+
+  const procesarJerarquiaTareas = (tareasRaw) => {
+    // Primero asignar IDs por rol
+    const tareasConIds = asignarIdsPorRol(tareasRaw);
+    
+    const mapaDeTareas = {};
+    tareasConIds.forEach(tarea => {
       mapaDeTareas[tarea.id] = { ...tarea, nivel: 0, hijos: [] };
     });
     
-    // Calcular niveles y construir jerarquía
     const calcularNivel = (tareaId, visitados = new Set()) => {
-      if (visitados.has(tareaId)) return 0; // Evitar ciclos infinitos
+      if (visitados.has(tareaId)) return 0;
       visitados.add(tareaId);
-      
       const tarea = mapaDeTareas[tareaId];
-      if (!tarea || !tarea.parent_task) return 0; // Tarea principal = nivel 0
-      
+      if (!tarea || !tarea.parent_task) return 0;
       return 1 + calcularNivel(tarea.parent_task, visitados);
     };
-
-
     
-    // Asignar niveles a todas las tareas
     Object.keys(mapaDeTareas).forEach(tareaId => {
       mapaDeTareas[tareaId].nivel = calcularNivel(parseInt(tareaId));
     });
     
-    // Retornar tareas con información de jerarquía
-    return Object.values(mapaDeTareas).sort((a, b) => {
-      // Mantener orden del backend (ya optimizado jerárquicamente)
-      return tareasRaw.indexOf(tareasRaw.find(t => t.id === a.id)) - 
-             tareasRaw.indexOf(tareasRaw.find(t => t.id === b.id));
+    const tareasJerarquicas = [];
+    Object.values(mapaDeTareas).forEach(tarea => {
+      if (tarea.parent_task) {
+        const padre = mapaDeTareas[tarea.parent_task];
+        if (padre) {
+          padre.hijos = padre.hijos || [];
+          padre.hijos.push(tarea);
+        }
+      } else {
+        tareasJerarquicas.push(tarea);
+      }
     });
+    
+    tareasJerarquicas.sort((a, b) => a.id - b.id);
+    tareasJerarquicas.forEach(tarea => {
+      if (tarea.hijos) {
+        tarea.hijos.sort((a, b) => a.id - b.id);
+      }
+    });
+    
+    const tareasAplanadas = [];
+    const aplanarJerarquia = (tarea) => {
+      tareasAplanadas.push(tarea);
+      if (tarea.hijos) {
+        tarea.hijos.forEach(hijo => aplanarJerarquia(hijo));
+      }
+    };
+    
+    tareasJerarquicas.forEach(tarea => aplanarJerarquia(tarea));
+    return tareasAplanadas;
   };
-  
-  // ✅ FUNCIÓN PARA SUBTAREAS: Obtener tareas principales disponibles como padres
+
   const obtenerTareasPrincipales = () => {
-    /**
-     * VALIDACIONES IMPLEMENTADAS:
-     * - ✅ Solo tareas con category='principal' pueden ser padres
-     * - ✅ No permite que subtareas tengan hijos (profundidad máxima 1 nivel)
-     * - ✅ Retorna lista filtrada para el selector parent_task_id
-     */
     return tareas.filter(tarea => 
-      tarea.category === 'principal' && // Solo tareas principales
-      tarea.parent_task === null &&     // Que no sean subtareas
-      tarea.user_id === userId          // Del usuario actual (o admin puede ver todas)
+      tarea.category === 'principal' && 
+      tarea.parent_task === null && 
+      (tarea.user_id === userId || esAdministrador())
     );
   };
 
+  const crearSubtarea = async (e, parentTaskId) => {
+    e.preventDefault();
+    if (!puedeCrearTareas()) {
+      alert('No tienes permisos para crear subtareas');
+      return;
+    }
+    if (!nuevaSubtarea.task.trim()) {
+      alert('El título de la subtarea es requerido');
+      return;
+    }
+    const tareaPadre = tareas.find(t => t.id === parseInt(parentTaskId));
+    if (!tareaPadre || tareaPadre.category !== 'principal' || tareaPadre.parent_task !== null) {
+      alert('La tarea principal seleccionada no es válida');
+      return;
+    }
+    try {
+      const subtareaData = {
+        task: nuevaSubtarea.task,
+        category: 'subtarea',
+        parent_task: parseInt(parentTaskId),
+        user_id: nuevaSubtarea.assigned_to || userId,
+        priority: nuevaSubtarea.priority,
+        status: nuevaSubtarea.status,
+        description: nuevaSubtarea.description || '',
+        progress: parseInt(nuevaSubtarea.progress) || 0,
+        estimated_hours: parseFloat(nuevaSubtarea.estimated_hours) || null,
+        actual_hours: parseFloat(nuevaSubtarea.actual_hours) || null,
+        tags: nuevaSubtarea.tags || '',
+        due_date: nuevaSubtarea.due_date || null,
+        start_date: nuevaSubtarea.start_date || null,
+        team: nuevaSubtarea.team || null
+      };
+      await axios.post(API_URL, subtareaData);
+      setNuevaSubtarea({
+        task: '',
+        priority: 'medium',
+        status: 'pending',
+        due_date: '',
+        description: '',
+        start_date: '',
+        progress: 0,
+        estimated_hours: '',
+        actual_hours: '',
+        tags: '',
+        team: null
+      });
+      setMostrarFormularioSubtarea(null);
+      obtenerTareas();
+      alert('Subtarea creada exitosamente y vinculada a la tarea principal');
+    } catch (error) {
+      console.error('Error al crear subtarea:', error);
+      alert('Error al crear la subtarea');
+    }
+  };
 
-  
+  const guardarEdicion = async (id) => {
+    try {
+      const tareaData = {
+        ...tareaEditada,
+        user_id: userId,
+        tags: tareaEditada.tags || '',
+        progress: parseInt(tareaEditada.progress) || 0,
+        estimated_hours: parseFloat(tareaEditada.estimated_hours) || null,
+        actual_hours: parseFloat(tareaEditada.actual_hours) || null,
+        parent_task: tareaEditada.parent_task || null,
+        team: tareaEditada.team || null,
+        due_date: tareaEditada.due_date || null,
+        start_date: tareaEditada.start_date || null,
+        description: tareaEditada.description || ''
+      };
+      
+      await axios.put(`${API_URL}${id}/`, tareaData);
+      
+      const tarea = tareas.find(t => t.id === id);
+      
+      // Si es una tarea principal y se marca como completada, completar todas sus subtareas
+      if (tarea && tarea.category === 'principal' && tarea.parent_task === null && tareaData.status === 'completed') {
+        const subtareas = tareas.filter(t => t.parent_task === id && t.status !== 'completed');
+        
+        if (subtareas.length > 0) {
+          const promesasSubtareas = subtareas.map(subtarea => 
+            axios.put(`${API_URL}${subtarea.id}/`, {
+              ...subtarea,
+              status: 'completed',
+              progress: 100
+            })
+          );
+          
+          await Promise.all(promesasSubtareas);
+          alert(`Tarea principal completada. Se han marcado como completadas ${subtareas.length} subtareas automáticamente.`);
+        } else {
+          alert('Tarea actualizada exitosamente');
+        }
+      } else {
+        alert('Tarea actualizada exitosamente');
+      }
+      
+      setEditandoTarea(null);
+      setTareaEditada({});
+      obtenerTareas();
+    } catch (error) {
+      console.error('Error al actualizar tarea:', error);
+      alert('Error al actualizar la tarea');
+    }
+  };
+
+  const crearTarea = async (e) => {
+    e.preventDefault();
+    if (!puedeCrearTareas()) {
+      alert('No tienes permisos para crear tareas');
+      return;
+    }
+    if (!nuevaTarea.task.trim()) {
+      alert('El título de la tarea es requerido');
+      return;
+    }
+    try {
+      const tareaData = {
+        ...nuevaTarea,
+        category: nuevaTarea.category,
+        user_id: nuevaTarea.assigned_to || userId,
+        tags: nuevaTarea.tags || '',
+        progress: parseInt(nuevaTarea.progress) || 0,
+        estimated_hours: parseFloat(nuevaTarea.estimated_hours) || null,
+        actual_hours: parseFloat(nuevaTarea.actual_hours) || null,
+        parent_task: null,
+        team: nuevaTarea.team || null,
+        due_date: nuevaTarea.due_date || null,
+        start_date: nuevaTarea.start_date || null,
+        description: nuevaTarea.description || ''
+      };
+      delete tareaData.assigned_to;
+      await axios.post(API_URL, tareaData);
+      setNuevaTarea({
+        task: '',
+        priority: 'medium',
+        status: 'pending',
+        category: 'principal',
+        due_date: '',
+        description: '',
+        start_date: '',
+        progress: 0,
+        estimated_hours: '',
+        actual_hours: '',
+        tags: '',
+        parent_task: null,
+        team: null,
+        assigned_to: null
+      });
+      obtenerTareas();
+      alert('Tarea creada exitosamente');
+    } catch (error) {
+      console.error('Error al crear tarea:', error);
+      alert('Error al crear la tarea');
+    }
+  };
+
   const esTareaVencida = (dueDate, status) => {
     if (!dueDate || status === 'completed') return false;
     const hoy = new Date();
@@ -168,36 +380,27 @@ const [availableRoles] = useState([
     };
     return nombres[rol] || rol;
   };
-//Funcion de los roles
-const handleRoleChange = async (selectedRole) => {
-  try {
-    // Llamar API para actualizar rol
-    await axios.put(`http://127.0.0.1:8000/api/users/${userData.user_id}/role/`, {
-      rol: selectedRole
-    });
-    
-    // Mostrar mensaje de éxito y cerrar selector
-    alert('Rol actualizado exitosamente. Por favor, inicia sesión nuevamente para ver los cambios.');
-    setShowRoleSelector(false);
-    
-    // Opcional: cerrar sesión automáticamente para que el usuario vuelva a iniciar sesión
-    // onLogout();
-  } catch (error) {
-    console.error('Error updating role:', error);
-    alert('Error al actualizar el rol. Por favor, inténtalo de nuevo.');
-  }
-};
 
-  // Funciones de API
+  const handleRoleChange = async (selectedRole) => {
+    try {
+      await axios.put(`http://127.0.0.1:8000/api/users/${userData.user_id}/role/`, {
+        rol: selectedRole
+      });
+      alert('Rol actualizado exitosamente. Por favor, inicia sesión nuevamente para ver los cambios.');
+      setShowRoleSelector(false);
+    } catch (error) {
+      console.error('Error updating role:', error);
+      alert('Error al actualizar el rol. Por favor, inténtalo de nuevo.');
+    }
+  };
+
   const construirURLConFiltros = () => {
     let url = `${API_URL}`;
-    
     if (userData?.rol === 'admin' && filtros.show_all) {
       url += '?show_all=true';
     } else {
       url += `?user_id=${userId}`;
     }
-    
     if (filtros.search && filtros.search.length >= 3) {
       url += `&search=${encodeURIComponent(filtros.search)}`;
     }
@@ -222,25 +425,19 @@ const handleRoleChange = async (selectedRole) => {
     if (filtros.progress_max) {
       url += `&progress_max=${filtros.progress_max}`;
     }
-    
     return url;
   };
 
   const obtenerTareas = async () => {
     try {
-      // ✅ INDICADOR DE CARGA: Mostrar "Cargando..." mientras se procesan las tareas
       setCargandoTareas(true);
-      
       const url = construirURLConFiltros();
       const response = await axios.get(url);
-      
-      // ✅ JERARQUÍA DE TAREAS: Procesar tareas para mostrar estructura jerárquica
       const tareasConJerarquia = procesarJerarquiaTareas(response.data);
       setTareas(tareasConJerarquia);
     } catch (error) {
       console.error('Error al obtener tareas:', error);
     } finally {
-      // ✅ OCULTAR INDICADOR: Completar carga en menos de 300ms (optimizada en backend)
       setCargandoTareas(false);
     }
   };
@@ -276,10 +473,7 @@ const handleRoleChange = async (selectedRole) => {
   };
 
   const obtenerUsuarios = async () => {
-    if (!esAdministrador()) {
-      return;
-    }
-    
+    if (!esAdministrador()) return;
     try {
       const response = await axios.get('http://127.0.0.1:8000/api/login/');
       setUsuarios(response.data);
@@ -290,11 +484,9 @@ const handleRoleChange = async (selectedRole) => {
 
   const obtenerEstadisticasGenerales = async () => {
     if (!esAdministrador()) return;
-    
     try {
       const response = await axios.get(`${API_URL}?show_all=true`);
       const todasLasTareas = response.data;
-      
       setEstadisticasGenerales({
         totalTareas: todasLasTareas.length,
         totalUsuarios: usuarios.length,
@@ -309,90 +501,182 @@ const handleRoleChange = async (selectedRole) => {
     }
   };
 
-  const crearTarea = async (e) => {
-    e.preventDefault();
-    
-    // Verificar permisos
-    if (!puedeCrearTareas()) {
-      alert('No tienes permisos para crear tareas');
-      return;
-    }
-    
-    if (!nuevaTarea.task.trim()) {
-      alert('El título de la tarea es requerido');
-      return;
-    }
-    
-    // ✅ VALIDACIONES PARA SUBTAREAS: Verificar reglas de jerarquía
-    if (modoCreacion === 'subtarea') {
-      if (!nuevaTarea.parent_task) {
-        alert('Debe seleccionar una tarea principal para la subtarea');
-        return;
+  const eliminarTarea = async (id) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar esta tarea?')) {
+      try {
+        await axios.delete(`${API_URL}${id}/`);
+        obtenerTareas();
+        alert('Tarea eliminada exitosamente');
+      } catch (error) {
+        console.error('Error al eliminar tarea:', error);
+        alert('Error al eliminar la tarea');
       }
-      
-      // Validar que la tarea padre sea principal
-      const tareaPadre = tareas.find(t => t.id === parseInt(nuevaTarea.parent_task));
-      if (!tareaPadre || tareaPadre.category !== 'principal') {
-        alert('Solo se pueden agregar subtareas a tareas principales');
-        return;
-      }
-      
-      if (tareaPadre.parent_task !== null) {
-        alert('No se pueden crear subtareas de otras subtareas (máximo 1 nivel de profundidad)');
-        return;
-      }
-    }
-    
-    try {
-      const tareaData = {
-        ...nuevaTarea,
-        // ✅ CONFIGURACIÓN AUTOMÁTICA: Establecer category según el modo de creación
-        category: modoCreacion === 'subtarea' ? 'subtarea' : nuevaTarea.category,
-        user_id: nuevaTarea.assigned_to || userId,
-        tags: nuevaTarea.tags || '',
-        progress: parseInt(nuevaTarea.progress) || 0,
-        estimated_hours: parseFloat(nuevaTarea.estimated_hours) || null,
-        actual_hours: parseFloat(nuevaTarea.actual_hours) || null,
-        parent_task: modoCreacion === 'subtarea' ? parseInt(nuevaTarea.parent_task) : null,
-        team: nuevaTarea.team || null,
-        due_date: nuevaTarea.due_date || null,
-        start_date: nuevaTarea.start_date || null,
-        description: nuevaTarea.description || ''
-      };
-      
-      delete tareaData.assigned_to;
-      
-      await axios.post(API_URL, tareaData);
-      
-      setNuevaTarea({
-        task: '',
-        priority: 'medium',
-        status: 'pending',
-        category: 'principal',
-        due_date: '',
-        description: '',
-        start_date: '',
-        progress: 0,
-        estimated_hours: '',
-        actual_hours: '',
-        tags: '',
-        parent_task: null,
-        team: null,
-        assigned_to: null
-      });
-      
-      obtenerTareas();
-      // ✅ MENSAJE DIFERENCIADO: Confirmar creación según el tipo de tarea
-      const mensajeExito = modoCreacion === 'subtarea' ? 
-        'Subtarea creada exitosamente y vinculada a la tarea principal' : 
-        'Tarea creada exitosamente';
-      alert(mensajeExito);
-    } catch (error) {
-      console.error('Error al crear tarea:', error);
-      alert('Error al crear la tarea');
     }
   };
 
+  const eliminarTareaAdmin = async (id) => {
+    if (!esAdministrador()) {
+      alert('No tienes permisos para eliminar esta tarea');
+      return;
+    }
+    if (window.confirm('¿Estás seguro de que quieres eliminar esta tarea? (Acción de administrador)')) {
+      try {
+        await axios.delete(`${API_URL}${id}/`);
+        obtenerTareas();
+        alert('Tarea eliminada exitosamente');
+      } catch (error) {
+        console.error('Error al eliminar tarea:', error);
+        alert('Error al eliminar la tarea');
+      }
+    }
+  };
+
+  const reasignarTarea = async (tareaId, nuevoUsuarioId) => {
+    if (!esAdministrador()) {
+      alert('No tienes permisos para reasignar tareas');
+      return;
+    }
+    try {
+      const tareaResponse = await axios.get(`${API_URL}${tareaId}/`);
+      const tareaCompleta = tareaResponse.data;
+      const tareaActualizada = {
+        ...tareaCompleta,
+        user_id: nuevoUsuarioId
+      };
+      await axios.put(`${API_URL}${tareaId}/`, tareaActualizada);
+      alert('Tarea reasignada exitosamente');
+      obtenerTareas();
+    } catch (error) {
+      console.error('Error al reasignar tarea:', error);
+      alert('Error al reasignar la tarea');
+    }
+  };
+
+  const cambiarRolUsuario = async (usuarioId, nuevoRol) => {
+    if (!esAdministrador()) {
+      alert('No tienes permisos para cambiar roles de usuarios');
+      return;
+    }
+    try {
+      const usuarioActual = usuarios.find(u => u.id === usuarioId);
+      if (!usuarioActual) {
+        alert('Usuario no encontrado');
+        return;
+      }
+      const datosActualizacion = {
+        documento_identidad: usuarioActual.documento_identidad,
+        nombre_completo: usuarioActual.nombre_completo,
+        fecha_nacimiento: usuarioActual.fecha_nacimiento,
+        rol: nuevoRol
+      };
+      if (usuarioActual.email && usuarioActual.email.trim() !== '') {
+        datosActualizacion.email = usuarioActual.email;
+      }
+      await axios.put(`http://127.0.0.1:8000/api/login/${usuarioId}/`, datosActualizacion);
+      if (nuevoRol === 'pendiente') {
+        alert(`Usuario "${usuarioActual.nombre_completo}" ha sido desactivado. Ahora está en estado pendiente.`);
+      } else {
+        alert(`Rol actualizado exitosamente. "${usuarioActual.nombre_completo}" ahora es: ${obtenerNombreRol(nuevoRol)}`);
+      }
+      obtenerUsuarios();
+    } catch (error) {
+      console.error('Error al cambiar rol:', error);
+      alert('Error al cambiar el rol del usuario.');
+    }
+  };
+
+  const eliminarUsuario = async (usuarioId, nombreUsuario) => {
+    if (!esAdministrador()) {
+      alert('No tienes permisos para eliminar usuarios');
+      return;
+    }
+    const confirmacion = window.confirm(
+      `¿Estás seguro de que deseas eliminar permanentemente al usuario "${nombreUsuario}"?\n\n` +
+      'Esta acción no se puede deshacer y eliminará:\n' +
+      '- El usuario y toda su información\n' +
+      '- Todas sus tareas asociadas\n' +
+      '- Todos sus comentarios\n\n' +
+      'Haz clic en "Aceptar" para confirmar o "Cancelar" para abortar.'
+    );
+    if (!confirmacion) return;
+    try {
+      await axios.delete(`http://127.0.0.1:8000/api/login/${usuarioId}/`);
+      alert(`Usuario "${nombreUsuario}" eliminado exitosamente del sistema.`);
+      obtenerUsuarios();
+    } catch (error) {
+      console.error('Error al eliminar usuario:', error);
+      alert('Error al eliminar el usuario.');
+    }
+  };
+
+  const crearUsuario = async (e) => {
+    e.preventDefault();
+    if (!esAdministrador()) {
+      alert('No tienes permisos para crear usuarios');
+      return;
+    }
+    if (!nuevoUsuario.documento_identidad || !nuevoUsuario.fecha_nacimiento || !nuevoUsuario.nombre_completo) {
+      alert('Documento, fecha de nacimiento y nombre completo son requeridos');
+      return;
+    }
+    try {
+      await axios.post('http://127.0.0.1:8000/api/admin/create-user/', {
+        ...nuevoUsuario,
+        admin_user_id: userData.user_id
+      });
+      alert('Usuario creado exitosamente');
+      setNuevoUsuario({
+        documento_identidad: '',
+        fecha_nacimiento: '',
+        nombre_completo: '',
+        email: '',
+        rol: 'usuario'
+      });
+      setShowCreateUserForm(false);
+      obtenerUsuarios();
+    } catch (error) {
+      console.error('Error al crear usuario:', error);
+      alert('Error al crear el usuario');
+    }
+  };
+
+  const verDetalleTarea = async (id) => {
+    try {
+      const response = await axios.get(`${API_URL}${id}/`);
+      setVistaDetalle(response.data);
+      setTareaSeleccionada(id);
+      obtenerComentarios(id);
+    } catch (error) {
+      console.error('Error al obtener detalle:', error);
+    }
+  };
+
+  const cerrarVistaDetalle = () => {
+    setVistaDetalle(null);
+    setTareaSeleccionada(null);
+  };
+
+  const agregarComentario = async (taskId) => {
+    if (!nuevoComentario.trim()) return;
+    try {
+      await axios.post(COMMENT_API_URL, {
+        task_id: taskId,
+        user_id: userId,
+        comment: nuevoComentario,
+        created_at: new Date().toISOString()
+      });
+      setNuevoComentario('');
+      obtenerComentarios(taskId);
+    } catch (error) {
+      console.error('Error al agregar comentario:', error);
+    }
+  };
+
+  const cancelarEdicion = () => {
+    setEditandoTarea(null);
+    setTareaEditada({});
+  };
+//Boton para editar
   const iniciarEdicion = (tarea) => {
     // Verificar permisos
     if (!puedeEditarTareas() && tarea.user_id !== userId) {
@@ -415,302 +699,10 @@ const handleRoleChange = async (selectedRole) => {
       tags: tarea.tags || '',
       parent_task: tarea.parent_task || null,
       team: tarea.team || null
+
     });
   };
 
-  const guardarEdicion = async (id) => {
-    try {
-      const tareaData = {
-        ...tareaEditada,
-        user_id: userId,
-        tags: tareaEditada.tags || '',
-        progress: parseInt(tareaEditada.progress) || 0,
-        estimated_hours: parseFloat(tareaEditada.estimated_hours) || null,
-        actual_hours: parseFloat(tareaEditada.actual_hours) || null,
-        parent_task: tareaEditada.parent_task || null,
-        team: tareaEditada.team || null,
-        due_date: tareaEditada.due_date || null,
-        start_date: tareaEditada.start_date || null,
-        description: tareaEditada.description || ''
-      };
-      
-      await axios.put(`${API_URL}${id}/`, tareaData);
-      setEditandoTarea(null);
-      setTareaEditada({});
-      obtenerTareas();
-      alert('Tarea actualizada exitosamente');
-    } catch (error) {
-      console.error('Error al actualizar tarea:', error);
-      alert('Error al actualizar la tarea');
-    }
-  };
-
-  const eliminarTarea = async (id) => {
-    if (window.confirm('¿Estás seguro de que quieres eliminar esta tarea?')) {
-      try {
-        await axios.delete(`${API_URL}${id}/`);
-        obtenerTareas();
-        alert('Tarea eliminada exitosamente');
-      } catch (error) {
-        console.error('Error al eliminar tarea:', error);
-        alert('Error al eliminar la tarea');
-      }
-    }
-  };
-{/* Eliminar las tareas- Administrador*/}
-  const eliminarTareaAdmin = async (id) => {
-    if (!esAdministrador()) {
-      alert('No tienes permisos para eliminar esta tarea');
-      return;
-    }
-
-    if (window.confirm('¿Estás seguro de que quieres eliminar esta tarea? (Acción de administrador)')) {
-      try {
-        await axios.delete(`${API_URL}${id}/`);
-        obtenerTareas();
-        alert('Tarea eliminada exitosamente');
-      } catch (error) {
-        console.error('Error al eliminar tarea:', error);
-        alert('Error al eliminar la tarea');
-      }
-    }
-  };
-
-{/* Eliminar las tareas- Usuarios*/}
-  const eliminarTareaUser = async (id) => {
-    // Verificar si el usuario tiene permisos para eliminar tareas
-    if (!puedeEditarTareas()) {
-      alert('No tienes permisos para eliminar esta tarea');
-      return;
-    }
-
-    if (window.confirm('¿Estás seguro de que quieres eliminar esta tarea?')) {
-      try {
-        await axios.delete(`${API_URL}${id}/`);
-        obtenerTareas();
-        alert('Tarea eliminada exitosamente');
-      } catch (error) {
-        console.error('Error al eliminar tarea:', error);
-        alert('Error al eliminar la tarea');
-      }
-    }
-  };
-
-  const reasignarTarea = async (tareaId, nuevoUsuarioId) => {
-    if (!esAdministrador()) {
-      alert('No tienes permisos para reasignar tareas');
-      return;
-    }
-
-    try {
-      // 1. Obtener la tarea actual completa
-      const tareaResponse = await axios.get(`${API_URL}${tareaId}/`);
-      const tareaCompleta = tareaResponse.data;
-      
-      // 2. Actualizar solo el user_id
-      const tareaActualizada = {
-        ...tareaCompleta,
-        user_id: nuevoUsuarioId
-      };
-      
-      // 3. Enviar la tarea completa actualizada
-      await axios.put(`${API_URL}${tareaId}/`, tareaActualizada);
-      
-      //Asignar tareas a los usuarios -Response.
-      alert('Tarea reasignada exitosamente');
-      obtenerTareas();
-    } catch (error) {
-      console.error('Error al reasignar tarea:', error);
-      console.error('Detalles del error:', error.response?.data);
-      alert('Error al reasignar la tarea');
-    }
-  };
-
-  const cambiarRolUsuario = async (usuarioId, nuevoRol) => {
-    if (!esAdministrador()) {
-      alert('No tienes permisos para cambiar roles de usuarios');
-      return;
-    }
-
-    try {
-
-
-
-
-
-      // Obtener información actual del usuario
-      const usuarioActual = usuarios.find(u => u.id === usuarioId);
-      
-      if (!usuarioActual) {
-        alert('Usuario no encontrado');
-        return;
-      }
-      
-      const datosActualizacion = {
-        documento_identidad: usuarioActual.documento_identidad,
-        nombre_completo: usuarioActual.nombre_completo,
-        fecha_nacimiento: usuarioActual.fecha_nacimiento,
-        rol: nuevoRol
-      };
-      
-      // Solo incluir email si tiene un valor válido
-      if (usuarioActual.email && usuarioActual.email.trim() !== '') {
-        datosActualizacion.email = usuarioActual.email;
-      }
-      
-      const response = await axios.put(`http://127.0.0.1:8000/api/login/${usuarioId}/`, datosActualizacion);
-      
-      if (nuevoRol === 'pendiente') {
-        alert(`Usuario "${usuarioActual.nombre_completo}" ha sido desactivado. Ahora está en estado pendiente.`);
-      } else {
-        alert(`Rol actualizado exitosamente. "${usuarioActual.nombre_completo}" ahora es: ${obtenerNombreRol(nuevoRol)}`);
-      }
-      
-      obtenerUsuarios();
-    } catch (error) {
-      console.error('Error al cambiar rol:', error);
-      
-      let mensajeError = 'Error al cambiar el rol del usuario.';
-      if (error.response?.data?.error) {
-        mensajeError = error.response.data.error;
-      } else if (error.response?.data?.message) {
-        mensajeError = error.response.data.message;
-      } else if (error.response?.status === 404) {
-        mensajeError = 'Usuario no encontrado en el servidor';
-      } else if (error.response?.status === 403) {
-        mensajeError = 'No tienes permisos para realizar esta acción';
-      }
-      
-      alert(mensajeError);
-    }
-  };
-
-  const eliminarUsuario = async (usuarioId, nombreUsuario) => {
-    if (!esAdministrador()) {
-      alert('No tienes permisos para eliminar usuarios');
-      return;
-    }
-
-    const confirmacion = window.confirm(
-      `¿Estás seguro de que deseas eliminar permanentemente al usuario "${nombreUsuario}"?\n\n` +
-      'Esta acción no se puede deshacer y eliminará:\n' +
-      '- El usuario y toda su información\n' +
-      '- Todas sus tareas asociadas\n' +
-      '- Todos sus comentarios\n\n' +
-      'Haz clic en "Aceptar" para confirmar o "Cancelar" para abortar.'
-    );
-
-    if (!confirmacion) {
-      return;
-    }
-
-    try {
-      const response = await axios.delete(`http://127.0.0.1:8000/api/login/${usuarioId}/`);
-      
-      alert(`Usuario "${nombreUsuario}" eliminado exitosamente del sistema.`);
-      obtenerUsuarios();
-    } catch (error) {
-      console.error('Error al eliminar usuario:', error);
-      
-      let mensajeError = 'Error al eliminar el usuario.';
-      if (error.response?.data?.error) {
-        mensajeError = error.response.data.error;
-      } else if (error.response?.data?.message) {
-        mensajeError = error.response.data.message;
-      } else if (error.response?.status === 404) {
-        mensajeError = 'Usuario no encontrado en el servidor';
-      } else if (error.response?.status === 403) {
-        mensajeError = 'No tienes permisos para eliminar este usuario';
-      } else if (error.response?.status === 405) {
-        mensajeError = 'Método no permitido. El endpoint DELETE no está disponible';
-      }
-      
-      alert(mensajeError);
-    }
-  };
-
-  const crearUsuario = async (e) => {
-    e.preventDefault();
-    
-    if (!esAdministrador()) {
-      alert('No tienes permisos para crear usuarios');
-      return;
-    }
-    
-    // Validaciones
-    if (!nuevoUsuario.documento_identidad || !nuevoUsuario.fecha_nacimiento || !nuevoUsuario.nombre_completo) {
-      alert('Documento, fecha de nacimiento y nombre completo son requeridos');
-      return;
-    }
-    
-    try {
-      const response = await axios.post('http://127.0.0.1:8000/api/admin/create-user/', {
-        ...nuevoUsuario,
-        admin_user_id: userData.user_id
-      });
-      
-      alert(response.data.message);
-      
-      // Resetear formulario
-      setNuevoUsuario({
-        documento_identidad: '',
-        fecha_nacimiento: '',
-        nombre_completo: '',
-        email: '',
-        rol: 'usuario'
-      });
-      
-      setShowCreateUserForm(false);
-      obtenerUsuarios(); // Actualizar lista de usuarios
-      
-    } catch (error) {
-      console.error('Error al crear usuario:', error);
-      const errorMessage = error.response?.data?.error || 'Error al crear el usuario';
-      alert(errorMessage);
-    }
-  };
-
-
-  const verDetalleTarea = async (id) => {
-    try {
-      const response = await axios.get(`${API_URL}${id}/`);
-      setVistaDetalle(response.data);
-      setTareaSeleccionada(id);
-      obtenerComentarios(id);
-    } catch (error) {
-      console.error('Error al obtener detalle:', error);
-    }
-  };
-
-  const cerrarVistaDetalle = () => {
-    setVistaDetalle(null);
-    setTareaSeleccionada(null);
-  };
-
-  const agregarComentario = async (taskId) => {
-    if (!nuevoComentario.trim()) return;
-    
-    try {
-      await axios.post(COMMENT_API_URL, {
-        task_id: taskId,
-        user_id: userId,
-        comment: nuevoComentario,
-        created_at: new Date().toISOString()
-      });
-      
-      setNuevoComentario('');
-      obtenerComentarios(taskId);
-    } catch (error) {
-      console.error('Error al agregar comentario:', error);
-    }
-  };
-
-  const cancelarEdicion = () => {
-    setEditandoTarea(null);
-    setTareaEditada({});
-  };
-
-  // Filtrar tareas
   const tareasFiltradas = tareas.filter(tarea => {
     const matchesSearch = !filtros.search || 
                          tarea.task.toLowerCase().includes(filtros.search.toLowerCase()) ||
@@ -722,17 +714,14 @@ const handleRoleChange = async (selectedRole) => {
     const matchesTags = !filtros.tags || (tarea.tags && tarea.tags.toLowerCase().includes(filtros.tags.toLowerCase()));
     const matchesProgressMin = !filtros.progress_min || tarea.progress >= parseInt(filtros.progress_min);
     const matchesProgressMax = !filtros.progress_max || tarea.progress <= parseInt(filtros.progress_max);
-    
     return matchesSearch && matchesPriority && matchesStatus && matchesCategory && 
            matchesDueDate && matchesTags && matchesProgressMin && matchesProgressMax;
   });
 
-  // Effects
   useEffect(() => {
     obtenerTareas();
     obtenerTeams();
     obtenerNotifications();
-    
     if (esAdministrador()) {
       obtenerUsuarios();
     }
@@ -744,7 +733,6 @@ const handleRoleChange = async (selectedRole) => {
     }
   }, [usuarios, userData]);
 
-  // Función para obtener las funcionalidades disponibles según el rol
   const obtenerFuncionalidadesPorRol = (rol) => {
     switch (rol) {
       case 'usuario':
@@ -844,25 +832,11 @@ const handleRoleChange = async (selectedRole) => {
     }
   };
 
-  // Obtener funcionalidades del usuario actual
   const funcionalidades = obtenerFuncionalidadesPorRol(userData?.rol);
-  
-  // Función auxiliar para verificar si el usuario es administrador
-  const esAdministrador = () => {
-    return userData?.rol === 'admin';
-  };
+  const esAdministrador = () => userData?.rol === 'admin';
+  const puedeEditarTareas = () => ['usuario', 'dev', 'dev_flask', 'dev_django', 'admin'].includes(userData?.rol);
+  const puedeCrearTareas = () => ['usuario', 'dev', 'dev_flask', 'dev_django', 'admin'].includes(userData?.rol);
 
-  // Función auxiliar para verificar si el usuario puede editar/eliminar tareas
-  const puedeEditarTareas = () => {
-    return ['usuario', 'dev', 'dev_flask', 'dev_django', 'admin'].includes(userData?.rol);
-  };
-
-  // Función auxiliar para verificar si el usuario puede crear tareas
-  const puedeCrearTareas = () => {
-    return ['usuario', 'dev', 'dev_flask', 'dev_django', 'admin'].includes(userData?.rol);
-  };
-  
-  // Pantalla de espera para usuarios pendientes por aprobación por parte del administrador
   if (funcionalidades.esperandoAprobacion) {
     return (
       <div className="pending-approval-screen">
@@ -886,7 +860,6 @@ const handleRoleChange = async (selectedRole) => {
     );
   }
 
-  // Pantalla de error para roles no válidos
   if (funcionalidades.rolNoValido) {
     return (
       <div className="invalid-role-screen">
@@ -906,8 +879,6 @@ const handleRoleChange = async (selectedRole) => {
   return (
     <div className="task-manager compact-layout">
       <div className="header">
-        
-        {/* Selector de rol para nuevos usuarios- administrador-Panel del admnistrador */}
         {showRoleSelector && (
           <div className="role-selector-modal">
             <div className="role-selector-content">
@@ -927,7 +898,6 @@ const handleRoleChange = async (selectedRole) => {
             </div>
           </div>
         )}
-
         <div className="user-info">
           <h2>Bienvenido, {userData.nombre_completo}</h2>
           <p>Rol: <span className={`role-badge ${userData.rol}`}>{obtenerNombreRol(userData.rol)}</span></p>
@@ -950,7 +920,6 @@ const handleRoleChange = async (selectedRole) => {
         </div>
       </div>
 
-      {/* Notificaciones */}
       {showNotifications && (
         <div className="notifications-panel">
           <h3>Notificaciones</h3>
@@ -973,14 +942,10 @@ const handleRoleChange = async (selectedRole) => {
         </div>
       )}
 
-      {/* Contenedor principal con dos columnas */}
       <div className="content-wrapper">
-        {/* Panel de Admin - Cuando está abierto ocupa todo el espacio */}
         {esAdministrador() && showAdminPanel ? (
           <div className="admin-panel-fullscreen compact-layout">
             <h3>Panel de Administrador</h3>
-            
-            {/* Estadísticas Generales */}
             <div className="admin-stats grid-compact">
               <div className="stat-card">
                 <h4>Total de Tareas</h4>
@@ -1011,12 +976,8 @@ const handleRoleChange = async (selectedRole) => {
                 <p>{usuarios.filter(u => u.rol === 'pendiente').length}</p>
               </div>
             </div>
-
-            {/* Gestión de Usuarios */}
             <div className="admin-users">
               <h4>Gestión de Usuarios</h4>
-              
-              {/* Botón para mostrar/ocultar formulario de crear usuario */}
               <div className="create-user-header">
                 <button 
                   className="create-user-toggle-btn"
@@ -1025,8 +986,6 @@ const handleRoleChange = async (selectedRole) => {
                   {showCreateUserForm ? '❌ Cancelar' : '➕ Crear Nuevo Usuario'}
                 </button>
               </div>
-
-              {/* Formulario para crear nuevos usuarios */}
               {showCreateUserForm && (
                 <div className="create-user-form-container">
                   <h5>Crear Nuevo Usuario</h5>
@@ -1047,7 +1006,6 @@ const handleRoleChange = async (selectedRole) => {
                         required
                       />
                     </div>
-                    
                     <div className="form-row">
                       <input
                         type="date"
@@ -1063,7 +1021,6 @@ const handleRoleChange = async (selectedRole) => {
                         onChange={(e) => setNuevoUsuario({...nuevoUsuario, email: e.target.value})}
                       />
                     </div>
-                    
                     <div className="form-row">
                       <select
                         value={nuevoUsuario.rol}
@@ -1083,7 +1040,6 @@ const handleRoleChange = async (selectedRole) => {
                   </form>
                 </div>
               )}
-              
               <div className="users-list">
                 {usuarios.map(usuario => (
                   <div key={usuario.id} className="user-item grid-compact">
@@ -1096,7 +1052,6 @@ const handleRoleChange = async (selectedRole) => {
                       </span>
                     </div>
                     <div className="user-actions">
-                      {/* Acciones para usuarios pendientes */}
                       {usuario.rol === 'pendiente' && (
                         <>
                           <select 
@@ -1123,8 +1078,6 @@ const handleRoleChange = async (selectedRole) => {
                           </button>
                         </>
                       )}
-                      
-                      {/* Acciones para usuarios activos */}
                       {usuario.rol !== 'pendiente' && (
                         <>
                           <select 
@@ -1156,415 +1109,427 @@ const handleRoleChange = async (selectedRole) => {
                     </div>
                   </div>
                 ))}
-                
                 {usuarios.filter(u => u.rol === 'pendiente').length === 0 && (
                   <p className="no-pending-users">No hay usuarios pendientes de aprobación</p>
                 )}
               </div>
             </div>
-
-      
           </div>
         ) : (
           <>
-          
-            {/* Columna izquierda - Controles */}
             <div className="left-column">
-
-
-          {/* Filtros */}
-          <div className="filters-container">
-            <div className="filters">
-              <div className="filter-group">
-                <input 
-                  type="text" 
-                  placeholder="Buscar tareas..."
-                  value={filtros.search}
-                  onChange={(e) => setFiltros({...filtros, search: e.target.value})}
-                />
-                <select 
-                  value={filtros.priority}
-                  onChange={(e) => setFiltros({...filtros, priority: e.target.value})}
-                >
-                  <option value="">Todas las prioridades</option>
-                  <option value="high">Alta</option>
-                  <option value="medium">Media</option>
-                  <option value="low">Baja</option>
-                </select>
-                <select 
-                  value={filtros.status}
-                  onChange={(e) => setFiltros({...filtros, status: e.target.value})}
-                >
-                  <option value="">Todos los estados</option>
-                  <option value="pending">Pendiente</option>
-                  <option value="in_progress">En Progreso</option>
-                  <option value="completed">Completada</option>
-                  <option value="cancelled">Cancelada</option>
-                </select>
-              </div>
-              
-              {/* Filtro especial para administrador */}
-              {esAdministrador() && (
-                <div className="admin-filter">
-                  <label className="checkbox-label">
+              <div className="filters-container">
+                <div className="filters">
+                  <div className="filter-group">
                     <input 
-                      type="checkbox"
-                      checked={filtros.show_all}
-                      onChange={(e) => setFiltros({...filtros, show_all: e.target.checked})}
+                      type="text" 
+                      placeholder="Buscar tareas..."
+                      value={filtros.search}
+                      onChange={(e) => setFiltros({...filtros, search: e.target.value})}
                     />
-                    Ver todas las tareas del sistema
-                  </label>
-                </div>
-              )}
-            </div>
-          </div>
-
-            {/* Estadísticas */}
-          <div className="stats-container">
-            <div className="stats-item">
-              <h4>Total de Tareas</h4>
-              <p>{tareas.length}</p>
-            </div>
-            <div className="stats-item">
-              <h4>Completadas</h4>
-              <p>{tareas.filter(t => t.status === 'completed').length}</p>
-            </div>
-            <div className="stats-item">
-              <h4>Pendientes</h4>
-              <p>{tareas.filter(t => t.status === 'pending').length}</p>
-            </div>
-            <div className="stats-item">
-              <h4>En Progreso</h4>
-              <p>{tareas.filter(t => t.status === 'in_progress').length}</p>
-            </div>
-            <div className="stats-item">
-              <h4>Vencidas</h4>
-              <p>{tareas.filter(t => esTareaVencida(t.due_date, t.status)).length}</p>
-            </div>
-          </div>
-
-          {/* Formulario de nueva tarea */}
-          {puedeCrearTareas() && (
-            <div className="new-task-form">
-              <div className="form-header">
-                <h3>Nueva Tarea</h3>
-                <div className="form-mode-toggle">
-                  <button 
-                    className={`mode-btn ${modoCreacion === 'simple' ? 'active' : ''}`}
-                    onClick={() => setModoCreacion('simple')}
-                  >
-                    Crear tareas
-                  </button> 
-                  <button 
-                    className={`mode-btn ${modoCreacion === 'avanzado' ? 'active' : ''}`}
-                    onClick={() => setModoCreacion('avanzado')}
-                  >
-                    Asignar tareas
-                  </button>
-                  {/* ✅ NUEVO MODO: Crear subtareas de tareas principales existentes */}
-                  <button 
-                    className={`mode-btn ${modoCreacion === 'subtarea' ? 'active' : ''}`}
-                    onClick={() => setModoCreacion('subtarea')}
-                  >
-                    Crear subtarea
-                  </button>
-                </div>
-              </div>
-              
-              <form onSubmit={crearTarea} className="task-form">
-                <div className="form-row">
-                  <input 
-                    type="text" 
-                    placeholder="Título de la tarea"
-                    value={nuevaTarea.task}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, task: e.target.value})}
-                    required
-                  />
-                  <select 
-                    value={nuevaTarea.priority}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, priority: e.target.value})}
-                  >
-                    <option value="high">Alta</option>
-                    <option value="medium">Media</option>
-                    <option value="low">Baja</option>
-                  </select>
-                  <select 
-                    value={nuevaTarea.status}
-                    onChange={(e) => setNuevaTarea({...nuevaTarea, status: e.target.value})}
-                  >
-                    <option value="pending">Pendiente</option>
-                    <option value="in_progress">En Progreso</option>
-                    <option value="completed">Completada</option>
-                    <option value="cancelled">Cancelada</option>
-                  </select>
-                </div>
-                
-                {modoCreacion === 'avanzado' && (
-                  <>
-                    <div className="form-row">
-                      <input 
-                        type="date" 
-                        value={nuevaTarea.due_date}
-                        onChange={(e) => setNuevaTarea({...nuevaTarea, due_date: e.target.value})}
-                        title="Fecha de vencimiento"
-                      />
-                      <select 
-                        value={nuevaTarea.category}
-                        onChange={(e) => setNuevaTarea({...nuevaTarea, category: e.target.value})}
-                      >
-                        <option value="principal">Principal</option>
-                        <option value="secundaria">Secundaria</option>
-                        <option value="urgente">Urgente</option>
-                      </select>
-                    </div>
-                    
-                    {/* Campo para asignar a otros usuarios (solo admin) */}
-                    {esAdministrador() && (
-                      <div className="form-row">
-                        <select 
-                          value={nuevaTarea.assigned_to || ''}
-                          onChange={(e) => setNuevaTarea({...nuevaTarea, assigned_to: e.target.value || null})}
-                        >
-                          <option value="">Asignar a mi mismo</option>
-                          {usuarios.filter(u => u.rol !== 'pendiente').map(usuario => (
-                            <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    
-                    <div className="form-row">
-                      <textarea 
-                        placeholder="Descripción de la tarea"
-                        value={nuevaTarea.description}
-                        onChange={(e) => setNuevaTarea({...nuevaTarea, description: e.target.value})}
-                        rows={3}
-                      />
-                    </div>
-                  </>
-                )}
-                
-                {/* ✅ FORMULARIO ESPECÍFICO PARA SUBTAREAS */}
-                {modoCreacion === 'subtarea' && (
-                  <>
-                    {/* Selector de tarea principal (parent_task_id) */}
-                    <div className="form-row">
-                      <select 
-                        value={nuevaTarea.parent_task || ''}
-                        onChange={(e) => setNuevaTarea({...nuevaTarea, parent_task: e.target.value})}
-                        required
-                        className="parent-task-selector"
-                      >
-                        <option value="">Seleccionar tarea principal...</option>
-                        {obtenerTareasPrincipales().map(tarea => (
-                          <option key={tarea.id} value={tarea.id}>
-                            📋 {tarea.task} ({tarea.priority === 'high' ? '🔴' : 
-                                           tarea.priority === 'medium' ? '🟡' : '🟢'})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    {/* Descripción opcional para la subtarea */}
-                    <div className="form-row">
-                      <textarea 
-                        placeholder="Descripción de la subtarea (opcional)"
-                        value={nuevaTarea.description}
-                        onChange={(e) => setNuevaTarea({...nuevaTarea, description: e.target.value})}
-                        rows={3}
-                        className="subtask-description"
-                      />
-                    </div>
-                    
-                    {/* Información sobre las limitaciones */}
-                    <div className="subtask-info">
-                      <p className="info-text">
-                        ℹ️ La subtarea se creará con category='subtarea' y se mostrará 
-                        indentada 20px debajo de la tarea principal seleccionada.
-                      </p>
-                    </div>
-                  </>
-                )}
-                
-                
-                <button type="submit" className="submit-btn">
-                  {/* ✅ TEXTO DINÁMICO: Cambiar texto del botón según el modo */}
-                  {modoCreacion === 'subtarea' ? 'Crear Subtarea' : 'Crear Tarea'}
-                </button>
-              </form>
-            </div>
-          )}
-        </div>
-
-
-        {/* Columna derecha - Lista de tareas */}
-        <div className="right-column">
-          <div className="tasks-list">
-            {/* ✅ INDICADOR DE CARGA: Mostrar "Cargando..." mientras se procesan las tareas */}
-            {cargandoTareas ? (
-              <div className="loading-indicator">
-                <p>Cargando tareas...</p>
-                <div className="loading-spinner"></div>
-              </div>
-            ) : tareasFiltradas.length === 0 ? (
-              <p className="no-tasks">No hay tareas que coincidan con los filtros.</p>
-            ) : (
-              tareasFiltradas.map(tarea => (
-                // ✅ INDENTACIÓN JERÁRQUICA: 20px por nivel según parent_task_id
-                <div 
-                  key={tarea.id} 
-                  className={`task-item ${tarea.status} priority-${tarea.priority}`}
-                  style={{
-                    marginLeft: `${(tarea.nivel || 0) * 20}px`,
-                    borderLeft: tarea.nivel > 0 ? '3px solid #0bf516' : 'none',
-                    position: 'relative'
-                  }}
-                >
-                  {/* ✅ INDICADOR VISUAL: Mostrar nivel de jerarquía para subtareas */}
-                  {tarea.nivel > 0 && (
-                    <div className="hierarchy-indicator">
-                      <span className="level-badge">Nivel {tarea.nivel}</span>
-                      <span className="parent-indicator">└─</span>
+                    <select 
+                      value={filtros.priority}
+                      onChange={(e) => setFiltros({...filtros, priority: e.target.value})}
+                    >
+                      <option value="">Todas las prioridades</option>
+                      <option value="high">Alta</option>
+                      <option value="medium">Media</option>
+                      <option value="low">Baja</option>
+                    </select>
+                    <select 
+                      value={filtros.status}
+                      onChange={(e) => setFiltros({...filtros, status: e.target.value})}
+                    >
+                      <option value="">Todos los estados</option>
+                      <option value="pending">Pendiente</option>
+                      <option value="in_progress">En Progreso</option>
+                      <option value="completed">Completada</option>
+                      <option value="cancelled">Cancelada</option>
+                    </select>
+                  </div>
+                  {esAdministrador() && (
+                    <div className="admin-filter">
+                      <label className="checkbox-label">
+                        <input 
+                          type="checkbox"
+                          checked={filtros.show_all}
+                          onChange={(e) => setFiltros({...filtros, show_all: e.target.checked})}
+                        />
+                        Ver todas las tareas del sistema
+                      </label>
                     </div>
                   )}
-                  {editandoTarea === tarea.id ? (
-                    // Formulario de edición
-                    <div className="edit-form">
+                </div>
+              </div>
+
+              <div className="stats-container">
+                <div className="stats-item">
+                  <h4>Total de Tareas</h4>
+                  <p>{tareas.length}</p>
+                </div>
+                <div className="stats-item">
+                  <h4>Completadas</h4>
+                  <p>{tareas.filter(t => t.status === 'completed').length}</p>
+                </div>
+                <div className="stats-item">
+                  <h4>Pendientes</h4>
+                  <p>{tareas.filter(t => t.status === 'pending').length}</p>
+                </div>
+                <div className="stats-item">
+                  <h4>En Progreso</h4>
+                  <p>{tareas.filter(t => t.status === 'in_progress').length}</p>
+                </div>
+                <div className="stats-item">
+                  <h4>Vencidas</h4>
+                  <p>{tareas.filter(t => esTareaVencida(t.due_date, t.status)).length}</p>
+                </div>
+              </div>
+
+              {puedeCrearTareas() && (
+                <div className="new-task-form">
+                  <div className="form-header">
+                    <h3>Nueva Tarea</h3>
+                    <div className="form-mode-toggle">
+                      
+                      <button 
+                        className={`mode-btn ${modoCreacion === 'avanzado' ? 'active' : ''}`}
+                        onClick={() => setModoCreacion('avanzado')}
+                      >
+                        Crear tarea
+                      </button>
+                    </div>
+                  </div>
+                  <form onSubmit={crearTarea} className="task-form">
+                    <div className="form-row">
                       <input 
-                        type="text"
-                        value={tareaEditada.task}
-                        onChange={(e) => setTareaEditada({...tareaEditada, task: e.target.value})}
+                        type="text" 
+                        placeholder="Título de la tarea"
+                        value={nuevaTarea.task}
+                        onChange={(e) => setNuevaTarea({...nuevaTarea, task: e.target.value})}
+                        required
                       />
                       <select 
-                        value={tareaEditada.priority}
-                        onChange={(e) => setTareaEditada({...tareaEditada, priority: e.target.value})}
+                        value={nuevaTarea.priority}
+                        onChange={(e) => setNuevaTarea({...nuevaTarea, priority: e.target.value})}
                       >
                         <option value="high">Alta</option>
                         <option value="medium">Media</option>
                         <option value="low">Baja</option>
                       </select>
                       <select 
-                        value={tareaEditada.status}
-                        onChange={(e) => setTareaEditada({...tareaEditada, status: e.target.value})}
+                        value={nuevaTarea.status}
+                        onChange={(e) => setNuevaTarea({...nuevaTarea, status: e.target.value})}
                       >
                         <option value="pending">Pendiente</option>
                         <option value="in_progress">En Progreso</option>
                         <option value="completed">Completada</option>
                         <option value="cancelled">Cancelada</option>
                       </select>
-                      <div className="edit-actions">
-                        <button onClick={() => guardarEdicion(tarea.id)}>Guardar</button>
-                        <button onClick={cancelarEdicion}>Cancelar</button>
-                      </div>
                     </div>
-                  ) : (
-                    // Vista normal de tarea
-                    <>
-                      <div className="task-header">
-                        <h4 className="task-title">{tarea.task}</h4>
-                        <div className="task-badges">
-                          <span className={`priority-badge ${tarea.priority}`}>
-                            {tarea.priority === 'high' && '🔴'}
-                            {tarea.priority === 'medium' && '🟡'}
-                            {tarea.priority === 'low' && '🟢'}
-                            {tarea.priority}
-                          </span>
-                          <span className={`status-badge ${tarea.status}`}>
-                            {tarea.status === 'completed' && '✅'}
-                            {tarea.status === 'in_progress' && '🔄'}
-                            {tarea.status === 'pending' && '⏳'}
-                            {tarea.status === 'cancelled' && '❌'}
-                            {tarea.status}
-                          </span>
+                    {modoCreacion === 'avanzado' && (
+                      <>
+                        <div className="form-row">
+                          <input 
+                            type="date" 
+                            value={nuevaTarea.due_date}
+                            onChange={(e) => setNuevaTarea({...nuevaTarea, due_date: e.target.value})}
+                            title="Fecha de vencimiento"
+                          />
+                          <select 
+                            value={nuevaTarea.category}
+                            onChange={(e) => setNuevaTarea({...nuevaTarea, category: e.target.value})}
+                          >
+                            <option value="principal">Principal</option>
+                            <option value="secundaria">Secundaria</option>
+                            <option value="urgente">Urgente</option>
+                          </select>
                         </div>
-                      </div>
-
-                      <div className="task-info">
-                        {tarea.due_date && (
-                          <span className={`due-date ${esTareaVencida(tarea.due_date, tarea.status) ? 'overdue' : ''}`}>
-                            📅 Vence: {formatearFecha(tarea.due_date)}
-                          </span>
-                        )}
-                        
-                        {tarea.description && (
-                          <p className="task-description">{tarea.description}</p>
-                        )}
-                        
-                        {/* Información adicional para admin */}
-                        {esAdministrador() && filtros.show_all && (
-                          <div className="task-admin-info">
-                            <span className="assigned-user">
-                              👤 Asignado a: {obtenerNombreUsuario(tarea.user_id)}
-                            </span>
+                        {esAdministrador() && (
+                          <div className="form-row">
+                            <select 
+                              value={nuevaTarea.assigned_to || ''}
+                              onChange={(e) => setNuevaTarea({...nuevaTarea, assigned_to: e.target.value || null})}
+                            >
+                              <option value="">Asignar a mi mismo</option>
+                              {usuarios.filter(u => u.rol !== 'pendiente').map(usuario => (
+                                <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo}</option>
+                              ))}
+                            </select>
                           </div>
                         )}
-                      </div>
-                      
-                      <div className="task-actions">
-                        <button 
-                          className="action-btn view-btn"
-                          onClick={() => verDetalleTarea(tarea.id)}
-                        >
-                          Ver
-                        </button>
-                        
-                        {/* Botones para tareas propias o usuarios con permisos */}
-                        {(tarea.user_id === userId || puedeEditarTareas()) && (
-                          <>
-                            <button 
-                              className="action-btn edit-btn"
-                              onClick={() => iniciarEdicion(tarea)}
-                            >
-                            Editar
-                            </button>
-                            <button 
-                              className="action-btn delete-btn"
-                              onClick={() => esAdministrador() ? eliminarTareaAdmin(tarea.id) : eliminarTarea(tarea.id)}
-                            >
-                            Eliminar
-                            </button>
-                          </>
-                        )}
-                        
-                        {/* Botón para reasignar (solo admin) */}
-                        {esAdministrador() && (
-                          <select 
-                            className="reassign-select"
-                            onChange={(e) => {
-                              if (e.target.value && window.confirm('¿Reasignar esta tarea?')) {
-                                reasignarTarea(tarea.id, e.target.value);
-                              }
-                              e.target.value = '';
-                            }}
-                          >
-                            <option value="">Reasignar a...</option>
-                            {usuarios.filter(u => u.rol !== 'pendiente' && u.id !== tarea.user_id).map(usuario => (
-                              <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo}</option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    </>
-                  )}
+                        <div className="form-row">
+                          <textarea 
+                            placeholder="Descripción de la tarea"
+                            value={nuevaTarea.description}
+                            onChange={(e) => setNuevaTarea({...nuevaTarea, description: e.target.value})}
+                            rows={3}
+                          />
+                        </div>
+                      </>
+                    )}
+                    <button type="submit" className="submit-btn">
+                      Crear Tarea
+                    </button>
+                  </form>
                 </div>
-              ))
-            )}
-          </div>
-        </div>
+              )}
+            </div>
+
+            <div className="right-column">
+              <div className="tasks-list">
+                {cargandoTareas ? (
+                  <div className="loading-indicator">
+                    <p>Cargando tareas...</p>
+                    <div className="loading-spinner"></div>
+                  </div>
+                ) : tareasFiltradas.length === 0 ? (
+                  <p className="no-tasks">No hay tareas que coincidan con los filtros.</p>
+                ) : (
+                  tareasFiltradas.map(tarea => (
+                    <div 
+                      key={tarea.id} 
+                      className={`task-item ${tarea.status} priority-${tarea.priority}`}
+                      style={{
+                        marginLeft: `${(tarea.nivel || 0) * 20}px`,
+                        borderLeft: tarea.nivel > 0 ? '3px solid #0bf516' : 'none',
+                        position: 'relative'
+                      }}
+                    >
+                      {tarea.nivel > 0 && (
+                        <div className="hierarchy-indicator">
+                          <span className="level-badge">Nivel {tarea.nivel}</span>
+                          <span className="parent-indicator">└─</span>
+                        </div>
+                      )}
+                      {editandoTarea === tarea.id ? (
+                        <div className="edit-form">
+                          <input 
+                            type="text"
+                            value={tareaEditada.task}
+                            onChange={(e) => setTareaEditada({...tareaEditada, task: e.target.value})}
+                          />
+                          <select 
+                            value={tareaEditada.priority}
+                            onChange={(e) => setTareaEditada({...tareaEditada, priority: e.target.value})}
+                          >
+                            <option value="high">Alta</option>
+                            <option value="medium">Media</option>
+                            <option value="low">Baja</option>
+                          </select>
+                          <select 
+                            value={tareaEditada.status}
+                            onChange={(e) => setTareaEditada({...tareaEditada, status: e.target.value})}
+                          >
+                            <option value="pending">Pendiente</option>
+                            <option value="in_progress">En Progreso</option>
+                            <option value="completed">Completada</option>
+                            <option value="cancelled">Cancelada</option>
+                          </select>
+                          <div className="edit-actions">
+                            <button onClick={() => guardarEdicion(tarea.id)}>Guardar</button>
+                            <button onClick={cancelarEdicion}>Cancelar</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="task-header">
+                            <div className="task-title-container">
+                              <span 
+                                className="task-id" 
+                                data-rol={tarea.idPorRol ? tarea.idPorRol.split('-')[258] : ''}
+                              >
+                                {tarea.idPorRol || `#${tarea.id}`}
+                              </span>
+                              <h4 className="task-title">{tarea.task}</h4>
+                            </div>
+                            <div className="task-badges">
+                              <span className={`priority-badge ${tarea.priority}`}>
+                                {tarea.priority === 'high' && '🔴'}
+                                {tarea.priority === 'medium' && '🟡'}
+                                {tarea.priority === 'low' && '🟢'}
+                                {tarea.priority}
+                              </span>
+                              <span className={`status-badge ${tarea.status}`}>
+                                {tarea.status === 'completed' && '✅'}
+                                {tarea.status === 'in_progress' && '🔄'}
+                                {tarea.status === 'pending' && '⏳'}
+                                {tarea.status === 'cancelled' && '❌'}
+                                {tarea.status}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="task-info">
+                            {tarea.due_date && (
+                              <span className={`due-date ${esTareaVencida(tarea.due_date, tarea.status) ? 'overdue' : ''}`}>
+                                📅 Vence: {formatearFecha(tarea.due_date)}
+                              </span>
+                            )}
+                            {tarea.description && (
+                              <p className="task-description">{tarea.description}</p>
+                            )}
+                            {esAdministrador() && filtros.show_all && (
+                              <div className="task-admin-info">
+                                <span className="assigned-user">
+                                  👤 Asignado a: {obtenerNombreUsuario(tarea.user_id)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="task-actions">
+                            {tarea.category === 'principal' && tarea.parent_task === null && puedeCrearTareas() && (
+                              <button 
+                                className="action-btn create-subtask-btn"
+                                onClick={() => setMostrarFormularioSubtarea(tarea.id)}
+                              >
+                                Crear Subtarea
+                              </button>
+                            )}
+                            <button 
+                              className="action-btn view-btn"
+                              onClick={() => verDetalleTarea(tarea.id)}
+                            >
+                              Ver
+                            </button>
+                            {(tarea.user_id === userId || puedeEditarTareas()) && (
+                              <>
+                                <button 
+                                  className="action-btn edit-btn"
+                                  onClick={() => iniciarEdicion(tarea)}
+                                >
+                                  Editar
+                                </button>
+                                <button 
+                                  className="action-btn delete-btn"
+                                  onClick={() => esAdministrador() ? eliminarTareaAdmin(tarea.id) : eliminarTarea(tarea.id)}
+                                >
+                                  Eliminar
+                                </button>
+                              </>
+                            )}
+                            {esAdministrador() && (
+                              <select 
+                                className="reassign-select"
+                                onChange={(e) => {
+                                  if (e.target.value && window.confirm('¿Reasignar esta tarea?')) {
+                                    reasignarTarea(tarea.id, e.target.value);
+                                  }
+                                  e.target.value = '';
+                                }}
+                              >
+                                <option value="">Reasignar a...</option>
+                                {usuarios.filter(u => u.rol !== 'pendiente' && u.id !== tarea.user_id).map(usuario => (
+                                  <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+
+                          {mostrarFormularioSubtarea === tarea.id && (
+                            <div className="subtask-form">
+                              <div className="form-header">
+                                <h3>Crear Subtarea para: {tarea.task}</h3>
+                                <button 
+                                  className="close-btn"
+                                  onClick={() => setMostrarFormularioSubtarea(null)}
+                                >
+                                  ×
+                                </button>
+                              </div>
+                              <form onSubmit={(e) => crearSubtarea(e, tarea.id)} className="task-form">
+                                <div className="form-row">
+                                  <input 
+                                    type="text" 
+                                    placeholder="Título de la subtarea"
+                                    value={nuevaSubtarea.task}
+                                    onChange={(e) => setNuevaSubtarea({...nuevaSubtarea, task: e.target.value})}
+                                    required
+                                  />
+                                  <select 
+                                    value={nuevaSubtarea.priority}
+                                    onChange={(e) => setNuevaSubtarea({...nuevaSubtarea, priority: e.target.value})}
+                                  >
+                                    <option value="high">Alta</option>
+                                    <option value="medium">Media</option>
+                                    <option value="low">Baja</option>
+                                  </select>
+                                  <select 
+                                    value={nuevaSubtarea.status}
+                                    onChange={(e) => setNuevaSubtarea({...nuevaSubtarea, status: e.target.value})}
+                                  >
+                                    <option value="pending">Pendiente</option>
+                                    <option value="in_progress">En Progreso</option>
+                                    <option value="completed">Completada</option>
+                                    <option value="cancelled">Cancelada</option>
+                                  </select>
+                                </div>
+                                <div className="form-row">
+                                  <input 
+                                    type="date" 
+                                    value={nuevaSubtarea.due_date}
+                                    onChange={(e) => setNuevaSubtarea({...nuevaSubtarea, due_date: e.target.value})}
+                                    title="Fecha de vencimiento"
+                                  />
+                                </div>
+                                {esAdministrador() && (
+                                  <div className="form-row">
+                                    <select 
+                                      value={nuevaSubtarea.assigned_to || ''}
+                                      onChange={(e) => setNuevaSubtarea({...nuevaSubtarea, assigned_to: e.target.value || null})}
+                                    >
+                                      <option value="">Asignar a mi mismo</option>
+                                      {usuarios.filter(u => u.rol !== 'pendiente').map(usuario => (
+                                        <option key={usuario.id} value={usuario.id}>{usuario.nombre_completo}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+                                <div className="form-row">
+                                  <textarea 
+                                    placeholder="Descripción de la subtarea (opcional)"
+                                    value={nuevaSubtarea.description}
+                                    onChange={(e) => setNuevaSubtarea({...nuevaSubtarea, description: e.target.value})}
+                                    rows={3}
+                                  />
+                                </div>
+                                <div className="form-actions">
+                                  <button type="submit" className="submit-btn">
+                                    Crear Subtarea
+                                  </button>
+                                  <button 
+                                    type="button" 
+                                    className="cancel-btn"
+                                    onClick={() => setMostrarFormularioSubtarea(null)}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </form>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </>
         )}
       </div>
 
-      {/* Vista detalle de tarea */}
       {vistaDetalle && (
         <div className="task-detail-modal">
           <div className="modal-content">
             <div className="modal-header">
-              <h3>{vistaDetalle.task}</h3>
+              <h3>{vistaDetalle.idPorRol || `#${vistaDetalle.id}`} - {vistaDetalle.task}</h3>
               <button className="close-btn" onClick={cerrarVistaDetalle}>×</button>
             </div>
             <div className="modal-body">
               <div className="task-details">
+                <p><strong>ID:</strong> {vistaDetalle.idPorRol || `#${vistaDetalle.id}`}</p>
+                <p><strong>ID Sistema:</strong> #{vistaDetalle.id}</p>
                 <p><strong>Prioridad:</strong> {vistaDetalle.priority}</p>
                 <p><strong>Estado:</strong> {vistaDetalle.status}</p>
                 <p><strong>Categoría:</strong> {vistaDetalle.category}</p>
@@ -1576,8 +1541,6 @@ const handleRoleChange = async (selectedRole) => {
                   <p><strong>Descripción:</strong> {vistaDetalle.description}</p>
                 )}
               </div>
-              
-              {/* Comentarios */}
               <div className="task-comments">
                 <h4>Comentarios</h4>
                 {comentarios[tareaSeleccionada] && comentarios[tareaSeleccionada].map(comentario => (
@@ -1586,7 +1549,6 @@ const handleRoleChange = async (selectedRole) => {
                     <span className="comment-date">{new Date(comentario.created_at).toLocaleString()}</span>
                   </div>
                 ))}
-                
                 <div className="add-comment">
                   <textarea 
                     placeholder="Agregar comentario..."
