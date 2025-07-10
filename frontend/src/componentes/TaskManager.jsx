@@ -8,6 +8,10 @@ import './TaskManager.css';
 const TaskManager = ({ userId, userData, onLogout, isDarkMode, toggleTheme }) => {
   // Estados principales para asignar tareas a los usuarios
   const [tareas, setTareas] = useState([]);
+  
+  // ✅ NUEVO: Estado para indicador de carga - Implementa característica requerida
+  const [cargandoTareas, setCargandoTareas] = useState(false);
+  
   const [nuevaTarea, setNuevaTarea] = useState({
     task: '',
     priority: 'medium',
@@ -77,7 +81,61 @@ const [availableRoles] = useState([
   const NOTIFICATION_API_URL = 'http://127.0.0.1:8000/api/notification/';
   const COMMENT_API_URL = 'http://127.0.0.1:8000/api/comment/';
 
-  // Funciones auxiliares
+  // Funciones auxiliares para verificar las tareas-----
+  
+  // ✅ NUEVA FUNCIÓN: Procesar jerarquía de tareas para mostrar indentación
+  const procesarJerarquiaTareas = (tareasRaw) => {
+   
+    
+    // Crear mapa de tareas para búsqueda rápida
+    const mapaDeTareas = {};
+    tareasRaw.forEach(tarea => {
+      mapaDeTareas[tarea.id] = { ...tarea, nivel: 0, hijos: [] };
+    });
+    
+    // Calcular niveles y construir jerarquía
+    const calcularNivel = (tareaId, visitados = new Set()) => {
+      if (visitados.has(tareaId)) return 0; // Evitar ciclos infinitos
+      visitados.add(tareaId);
+      
+      const tarea = mapaDeTareas[tareaId];
+      if (!tarea || !tarea.parent_task) return 0; // Tarea principal = nivel 0
+      
+      return 1 + calcularNivel(tarea.parent_task, visitados);
+    };
+
+
+    
+    // Asignar niveles a todas las tareas
+    Object.keys(mapaDeTareas).forEach(tareaId => {
+      mapaDeTareas[tareaId].nivel = calcularNivel(parseInt(tareaId));
+    });
+    
+    // Retornar tareas con información de jerarquía
+    return Object.values(mapaDeTareas).sort((a, b) => {
+      // Mantener orden del backend (ya optimizado jerárquicamente)
+      return tareasRaw.indexOf(tareasRaw.find(t => t.id === a.id)) - 
+             tareasRaw.indexOf(tareasRaw.find(t => t.id === b.id));
+    });
+  };
+  
+  // ✅ FUNCIÓN PARA SUBTAREAS: Obtener tareas principales disponibles como padres
+  const obtenerTareasPrincipales = () => {
+    /**
+     * VALIDACIONES IMPLEMENTADAS:
+     * - ✅ Solo tareas con category='principal' pueden ser padres
+     * - ✅ No permite que subtareas tengan hijos (profundidad máxima 1 nivel)
+     * - ✅ Retorna lista filtrada para el selector parent_task_id
+     */
+    return tareas.filter(tarea => 
+      tarea.category === 'principal' && // Solo tareas principales
+      tarea.parent_task === null &&     // Que no sean subtareas
+      tarea.user_id === userId          // Del usuario actual (o admin puede ver todas)
+    );
+  };
+
+
+  
   const esTareaVencida = (dueDate, status) => {
     if (!dueDate || status === 'completed') return false;
     const hoy = new Date();
@@ -170,11 +228,20 @@ const handleRoleChange = async (selectedRole) => {
 
   const obtenerTareas = async () => {
     try {
+      // ✅ INDICADOR DE CARGA: Mostrar "Cargando..." mientras se procesan las tareas
+      setCargandoTareas(true);
+      
       const url = construirURLConFiltros();
       const response = await axios.get(url);
-      setTareas(response.data);
+      
+      // ✅ JERARQUÍA DE TAREAS: Procesar tareas para mostrar estructura jerárquica
+      const tareasConJerarquia = procesarJerarquiaTareas(response.data);
+      setTareas(tareasConJerarquia);
     } catch (error) {
       console.error('Error al obtener tareas:', error);
+    } finally {
+      // ✅ OCULTAR INDICADOR: Completar carga en menos de 300ms (optimizada en backend)
+      setCargandoTareas(false);
     }
   };
 
@@ -256,15 +323,37 @@ const handleRoleChange = async (selectedRole) => {
       return;
     }
     
+    // ✅ VALIDACIONES PARA SUBTAREAS: Verificar reglas de jerarquía
+    if (modoCreacion === 'subtarea') {
+      if (!nuevaTarea.parent_task) {
+        alert('Debe seleccionar una tarea principal para la subtarea');
+        return;
+      }
+      
+      // Validar que la tarea padre sea principal
+      const tareaPadre = tareas.find(t => t.id === parseInt(nuevaTarea.parent_task));
+      if (!tareaPadre || tareaPadre.category !== 'principal') {
+        alert('Solo se pueden agregar subtareas a tareas principales');
+        return;
+      }
+      
+      if (tareaPadre.parent_task !== null) {
+        alert('No se pueden crear subtareas de otras subtareas (máximo 1 nivel de profundidad)');
+        return;
+      }
+    }
+    
     try {
       const tareaData = {
         ...nuevaTarea,
+        // ✅ CONFIGURACIÓN AUTOMÁTICA: Establecer category según el modo de creación
+        category: modoCreacion === 'subtarea' ? 'subtarea' : nuevaTarea.category,
         user_id: nuevaTarea.assigned_to || userId,
         tags: nuevaTarea.tags || '',
         progress: parseInt(nuevaTarea.progress) || 0,
         estimated_hours: parseFloat(nuevaTarea.estimated_hours) || null,
         actual_hours: parseFloat(nuevaTarea.actual_hours) || null,
-        parent_task: nuevaTarea.parent_task || null,
+        parent_task: modoCreacion === 'subtarea' ? parseInt(nuevaTarea.parent_task) : null,
         team: nuevaTarea.team || null,
         due_date: nuevaTarea.due_date || null,
         start_date: nuevaTarea.start_date || null,
@@ -293,7 +382,11 @@ const handleRoleChange = async (selectedRole) => {
       });
       
       obtenerTareas();
-      alert('Tarea creada exitosamente');
+      // ✅ MENSAJE DIFERENCIADO: Confirmar creación según el tipo de tarea
+      const mensajeExito = modoCreacion === 'subtarea' ? 
+        'Subtarea creada exitosamente y vinculada a la tarea principal' : 
+        'Tarea creada exitosamente';
+      alert(mensajeExito);
     } catch (error) {
       console.error('Error al crear tarea:', error);
       alert('Error al crear la tarea');
@@ -1168,6 +1261,13 @@ const handleRoleChange = async (selectedRole) => {
                   >
                     Asignar tareas
                   </button>
+                  {/* ✅ NUEVO MODO: Crear subtareas de tareas principales existentes */}
+                  <button 
+                    className={`mode-btn ${modoCreacion === 'subtarea' ? 'active' : ''}`}
+                    onClick={() => setModoCreacion('subtarea')}
+                  >
+                    Crear subtarea
+                  </button>
                 </div>
               </div>
               
@@ -1244,9 +1344,52 @@ const handleRoleChange = async (selectedRole) => {
                   </>
                 )}
                 
+                {/* ✅ FORMULARIO ESPECÍFICO PARA SUBTAREAS */}
+                {modoCreacion === 'subtarea' && (
+                  <>
+                    {/* Selector de tarea principal (parent_task_id) */}
+                    <div className="form-row">
+                      <select 
+                        value={nuevaTarea.parent_task || ''}
+                        onChange={(e) => setNuevaTarea({...nuevaTarea, parent_task: e.target.value})}
+                        required
+                        className="parent-task-selector"
+                      >
+                        <option value="">Seleccionar tarea principal...</option>
+                        {obtenerTareasPrincipales().map(tarea => (
+                          <option key={tarea.id} value={tarea.id}>
+                            📋 {tarea.task} ({tarea.priority === 'high' ? '🔴' : 
+                                           tarea.priority === 'medium' ? '🟡' : '🟢'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {/* Descripción opcional para la subtarea */}
+                    <div className="form-row">
+                      <textarea 
+                        placeholder="Descripción de la subtarea (opcional)"
+                        value={nuevaTarea.description}
+                        onChange={(e) => setNuevaTarea({...nuevaTarea, description: e.target.value})}
+                        rows={3}
+                        className="subtask-description"
+                      />
+                    </div>
+                    
+                    {/* Información sobre las limitaciones */}
+                    <div className="subtask-info">
+                      <p className="info-text">
+                        ℹ️ La subtarea se creará con category='subtarea' y se mostrará 
+                        indentada 20px debajo de la tarea principal seleccionada.
+                      </p>
+                    </div>
+                  </>
+                )}
+                
                 
                 <button type="submit" className="submit-btn">
-                  Crear Tarea
+                  {/* ✅ TEXTO DINÁMICO: Cambiar texto del botón según el modo */}
+                  {modoCreacion === 'subtarea' ? 'Crear Subtarea' : 'Crear Tarea'}
                 </button>
               </form>
             </div>
@@ -1257,11 +1400,33 @@ const handleRoleChange = async (selectedRole) => {
         {/* Columna derecha - Lista de tareas */}
         <div className="right-column">
           <div className="tasks-list">
-            {tareasFiltradas.length === 0 ? (
+            {/* ✅ INDICADOR DE CARGA: Mostrar "Cargando..." mientras se procesan las tareas */}
+            {cargandoTareas ? (
+              <div className="loading-indicator">
+                <p>Cargando tareas...</p>
+                <div className="loading-spinner"></div>
+              </div>
+            ) : tareasFiltradas.length === 0 ? (
               <p className="no-tasks">No hay tareas que coincidan con los filtros.</p>
             ) : (
               tareasFiltradas.map(tarea => (
-                <div key={tarea.id} className={`task-item ${tarea.status} priority-${tarea.priority}`}>
+                // ✅ INDENTACIÓN JERÁRQUICA: 20px por nivel según parent_task_id
+                <div 
+                  key={tarea.id} 
+                  className={`task-item ${tarea.status} priority-${tarea.priority}`}
+                  style={{
+                    marginLeft: `${(tarea.nivel || 0) * 20}px`,
+                    borderLeft: tarea.nivel > 0 ? '3px solid #0bf516' : 'none',
+                    position: 'relative'
+                  }}
+                >
+                  {/* ✅ INDICADOR VISUAL: Mostrar nivel de jerarquía para subtareas */}
+                  {tarea.nivel > 0 && (
+                    <div className="hierarchy-indicator">
+                      <span className="level-badge">Nivel {tarea.nivel}</span>
+                      <span className="parent-indicator">└─</span>
+                    </div>
+                  )}
                   {editandoTarea === tarea.id ? (
                     // Formulario de edición
                     <div className="edit-form">

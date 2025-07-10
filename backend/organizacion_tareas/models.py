@@ -123,6 +123,44 @@ class Task(models.Model):
             return (completed_subtasks / total_subtasks) * 100 if total_subtasks > 0 else 0
         return self.progress
 
+    def clean(self):
+        """
+        ✅ VALIDACIONES PARA SUBTAREAS: Implementa reglas de jerarquía
+        - Solo tareas principales pueden tener subtareas
+        - Profundidad máxima de 1 nivel
+        - Validación de categorías coherentes
+        """
+        from django.core.exceptions import ValidationError
+        
+        # Validar que las subtareas solo tengan tareas principales como padres
+        if self.parent_task and self.parent_task.category != 'principal':
+            raise ValidationError(
+                'Las subtareas solo pueden tener tareas principales como padres.'
+            )
+        
+        # Validar que las subtareas no puedan tener hijos (máximo 1 nivel)
+        if self.parent_task and self.parent_task.parent_task:
+            raise ValidationError(
+                'No se permite más de un nivel de profundidad en las subtareas.'
+            )
+        
+        # Validar coherencia: si tiene parent_task, debe ser subtarea
+        if self.parent_task and self.category != 'subtarea':
+            raise ValidationError(
+                'Las tareas con parent_task deben tener category="subtarea".'
+            )
+        
+        # Validar coherencia: si es subtarea, debe tener parent_task
+        if self.category == 'subtarea' and not self.parent_task:
+            raise ValidationError(
+                'Las subtareas deben tener un parent_task asignado.'
+            )
+
+    def save(self, *args, **kwargs):
+        """Ejecutar validaciones antes de guardar"""
+        self.clean()
+        super().save(*args, **kwargs)
+
 
 #User de la aplicacion - MODELO LEGACY (se puede eliminar después)
 class User(models.Model):
